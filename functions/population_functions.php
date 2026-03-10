@@ -59,8 +59,7 @@ function compute_population_data($pdo, $barangay_id) {
                 children_count   = ?,
                 pwd_count        = ?,
                 ips_count        = ?,
-                data_date        = CURDATE(),
-                updated_at       = NOW()
+                data_date        = CURDATE()
             WHERE barangay_id = ?
         ");
         $stmt->execute([

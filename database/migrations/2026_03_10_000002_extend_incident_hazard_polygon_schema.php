@@ -9,7 +9,7 @@
 //  - Adds aggregate totals columns to incident_reports
 //  - Adds ip_count to affected_areas
 //  - Adds polygon_geojson to hazard_zones (Phase 3 hazard polygon drawing)
-//  - Adds population_data_archive table if not exists
+//  NOTE: population_data_archive already created by migration 000007
 // ─────────────────────────────────────────
 
 return new class {
@@ -60,25 +60,7 @@ return new class {
             $pdo->exec("ALTER TABLE `hazard_zones` ADD COLUMN IF NOT EXISTS `polygon_geojson` LONGTEXT DEFAULT NULL COMMENT 'GeoJSON polygon drawn for this hazard zone' AFTER `coordinates`");
         } catch (Throwable $e) { /* ignore */ }
 
-        // 6. Ensure population_data_archive table exists (Phase 6)
-        $pdo->exec("
-            CREATE TABLE IF NOT EXISTS `population_data_archive` (
-                `id`              INT(11) NOT NULL AUTO_INCREMENT,
-                `barangay_id`     INT(11) NOT NULL,
-                `total_population` INT(11) DEFAULT 0,
-                `male_count`      INT(11) DEFAULT 0,
-                `female_count`    INT(11) DEFAULT 0,
-                `elderly_count`   INT(11) DEFAULT 0,
-                `children_count`  INT(11) DEFAULT 0,
-                `pwd_count`       INT(11) DEFAULT 0,
-                `archived_at`     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                `archived_by`     VARCHAR(100) DEFAULT NULL,
-                `change_type`     ENUM('UPDATE','DELETE','INITIAL') DEFAULT 'UPDATE',
-                PRIMARY KEY (`id`),
-                KEY `barangay_id` (`barangay_id`),
-                CONSTRAINT `pop_archive_ibfk_1` FOREIGN KEY (`barangay_id`) REFERENCES `barangays` (`id`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-        ");
+        // population_data_archive already created by migration 000007 — no action needed
     }
 
     public function down(PDO $pdo): void {
@@ -91,6 +73,5 @@ return new class {
         }
         try { $pdo->exec("ALTER TABLE `affected_areas` DROP COLUMN IF EXISTS `ip_count`"); } catch (Throwable $e) {}
         try { $pdo->exec("ALTER TABLE `hazard_zones` DROP COLUMN IF EXISTS `polygon_geojson`"); } catch (Throwable $e) {}
-        $pdo->exec("DROP TABLE IF EXISTS `population_data_archive`");
     }
 };
