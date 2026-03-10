@@ -582,3 +582,6 @@ supports all of these upgrades:
 The household GPS infrastructure, boundary polygons, and
 point-in-polygon computation built in this version are the
 exact foundation needed for all future upgrades listed above.
+
+
+[Note: You can redesign the UI for more manageable style. Because this old design is to compressed with to many data card and table showing in one page that can be change into modal style or hidden tab style, You can change CRUD as JQUERY with notify js to prevent all page submit]
