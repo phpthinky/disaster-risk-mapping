@@ -51,7 +51,218 @@ OUT OF SCOPE FOR THIS VERSION:
 These are noted in the system UI as future upgrade capabilities.
 
 ═══════════════════════════════════════════════════════════════════
+Before performing any audit or writing any code, reorganize the project into a feature-based directory structure. Do not place all PHP files in a single root directory.
 
+All system components must be grouped by module.
+
+Example structure:
+
+/config
+/core
+/modules
+    /barangays
+    /households
+    /hazards
+    /incidents
+    /population
+    /evacuation
+/map
+/api
+/assets
+/includes
+
+Rules:
+
+Each module contains its own CRUD files, AJAX handlers, and UI pages.
+
+Shared functions such as handle_sync() must be placed inside /core.
+
+Map logic should be placed inside /map.
+
+API/AJAX endpoints must be placed inside /api.
+
+UI layout components such as header, sidebar, and footer go inside /includes.
+
+All file paths and includes must follow this structure from the start.
+
+Do not generate files in the root directory except for the main entry pages if necessary.
+═══════════════════════════════════════════════════════════════════
+UI REDESIGN REQUIREMENT (Add this as PHASE 8)
+UI GOAL
+
+Redesign the interface to avoid compressed cards and overcrowded pages from the old system design.
+
+The new UI must prioritize:
+
+clarity
+
+larger map workspace
+
+separated workflows
+
+minimal page reloads
+
+faster data entry for staff
+
+Use Bootstrap 5.3, jQuery, and AJAX-based CRUD operations.
+
+Layout Rules
+1. Avoid stacked cards
+
+Do NOT stack multiple cards vertically for complex pages.
+
+Old design example (bad):
+
+[Card: Statistics]
+[Card: Map]
+[Card: Table]
+[Card: Form]
+
+This causes long scrolling and cramped layouts.
+
+Instead use:
+
+Tabs
+Modals
+Split panels
+Use Tabs for multi-sections
+
+Pages with multiple related functions should use Bootstrap Tabs.
+
+Example: household_management.php
+
+Tab 1 — Household List
+Tab 2 — Add Household
+Tab 3 — GPS Data Quality Report
+Tab 4 — Members Management
+
+Benefits:
+
+page stays organized
+
+user focuses on one task
+
+less vertical scrolling
+
+Use Modals for CRUD operations
+
+All CRUD forms should open inside Bootstrap Modals.
+
+Example:
+
+Household List
+   ├── Add Household (Modal)
+   ├── Edit Household (Modal)
+   └── Delete Confirmation (Modal)
+
+Benefits:
+
+user stays on same page
+
+faster workflow
+
+avoids full page navigation
+
+Use jQuery AJAX for CRUD
+
+To prevent full page reloads:
+
+Use AJAX for Create / Update / Delete
+
+Submit forms with $.ajax()
+
+Update tables dynamically
+
+Show success messages using Bootstrap alerts or toast
+
+Example flow:
+
+User clicks "Add Household"
+      ↓
+Modal opens
+      ↓
+Form submit via AJAX
+      ↓
+Server saves record
+      ↓
+handle_sync() runs
+      ↓
+Table refreshes via AJAX
+      ↓
+Modal closes
+
+No page reload required.
+
+Map UI Priority
+
+Map pages must give maximum space to the map.
+
+Example layout:
+
+-------------------------------------
+| Sidebar |        MAP              |
+| Stats   |                         |
+| Filters |                         |
+-------------------------------------
+
+Rules:
+
+Map should occupy 70–80% of screen width
+
+Sidebar used for filters, legend, or controls
+
+Avoid placing map inside small cards
+
+Table Handling
+
+Use searchable and paginated tables.
+
+Recommended approach:
+
+client-side pagination with jQuery
+
+column filters
+
+quick search bar
+
+Example:
+
+Search: [__________]
+
+| Household Head | Barangay | Members | Actions |
+Form Usability
+
+Forms must include:
+
+grouped sections
+
+icons for vulnerability fields
+
+validation feedback
+
+clear GPS input section
+
+Example:
+
+Household Information
+Family Composition
+GPS Coordinates
+Preparedness Data
+Notification System
+
+Use:
+
+Bootstrap Toast or Alert
+
+Success / Error / Warning messages
+
+Examples:
+
+✔ Household saved successfully
+⚠ Invalid GPS coordinate
+✔ Population data updated
+
+═══════════════════════════════════════════════════════════════════
 PHASE 0 — AUDIT FIRST, NO CHANGES YET
 ---------------------------------------
 1.  List all PHP files and describe what each one does in one line
