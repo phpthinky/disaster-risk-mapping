@@ -142,6 +142,21 @@ $currentPage = basename($_SERVER['PHP_SELF']);
           <i class="fas fa-cog me-2"></i> User Management
         </a>
       </li>
+      <li class="nav-item mb-1">
+        <a class="nav-link text-white d-flex align-items-center px-3 py-2 rounded hover-bg <?php echo ($currentPage == 'barangay_boundaries.php') ? 'active' : ''; ?>" href="barangay_boundaries.php">
+          <i class="fas fa-draw-polygon me-2"></i> Barangay Boundaries
+        </a>
+      </li>
+      <li class="nav-item mb-1">
+        <a class="nav-link text-white d-flex align-items-center px-3 py-2 rounded hover-bg <?php echo ($currentPage == 'population_comparison.php') ? 'active' : ''; ?>" href="population_comparison.php">
+          <i class="fas fa-chart-line me-2"></i> Population Comparison
+        </a>
+      </li>
+      <li class="nav-item mb-1">
+        <a class="nav-link text-white d-flex align-items-center px-3 py-2 rounded hover-bg <?php echo ($currentPage == 'gps_quality_report.php') ? 'active' : ''; ?>" href="gps_quality_report.php">
+          <i class="fas fa-map-marker-alt me-2"></i> GPS Quality Report
+        </a>
+      </li>
       <?php endif; ?>
       
     <?php if ($_SESSION['role'] == 'division_chief'): ?>

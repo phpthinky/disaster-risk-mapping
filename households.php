@@ -56,6 +56,15 @@ try {
     // Columns might already exist, continue
 }
 
+require_once __DIR__ . '/functions/population_functions.php';
+
+// GPS validation helper
+function validate_gps($lat, $lng) {
+    $lat = (float)$lat;
+    $lng = (float)$lng;
+    return ($lat >= 12.50 && $lat <= 13.20 && $lng >= 120.50 && $lng <= 121.20);
+}
+
 // Handle form submissions
 if ($_POST) {
     if (isset($_POST['add_household'])) {
@@ -76,9 +85,14 @@ if ($_POST) {
         $longitude = $_POST['longitude'];
         $members_data = json_decode($_POST['members_data'], true);
 
+        // GPS validation — required
+        if (!validate_gps($latitude, $longitude)) {
+            $error = "Invalid GPS coordinates. Latitude must be between 12.50–13.20 and Longitude between 120.50–121.20. Please use the map picker to set valid coordinates.";
+        } else {
+
         // Start transaction
         $pdo->beginTransaction();
-        
+
         try {
 // Insert household
 $stmt = $pdo->prepare("INSERT INTO households 
@@ -121,14 +135,17 @@ $stmt->execute([$household_head, $barangay_id, $zone, $gender, $age, $gender, $h
             }
             
             $pdo->commit();
+            // Sync barangay population after insert
+            sync_barangay_population($pdo, $barangay_id);
             $success = "Household added successfully!";
-            
+
         } catch (Exception $e) {
             $pdo->rollBack();
             $error = "Error: " . $e->getMessage();
         }
+        } // end GPS validation block
     }
-    
+
     if (isset($_POST['update_household'])) {
         $household_id = $_POST['household_id'];
         $household_head = $_POST['household_head'];
@@ -147,9 +164,14 @@ $stmt->execute([$household_head, $barangay_id, $zone, $gender, $age, $gender, $h
         $longitude = $_POST['longitude'];
         $members_data = json_decode($_POST['members_data'], true);
 
+        // GPS validation — required
+        if (!validate_gps($latitude, $longitude)) {
+            $error = "Invalid GPS coordinates. Latitude must be between 12.50–13.20 and Longitude between 120.50–121.20.";
+        } else {
+
         // Start transaction
         $pdo->beginTransaction();
-        
+
         try {
 // Update household
 $stmt = $pdo->prepare("UPDATE households 
@@ -196,22 +218,34 @@ $stmt->execute([$household_head, $barangay_id, $zone, $gender, $age, $gender, $h
             }
             
             $pdo->commit();
+            // Sync barangay population after update
+            sync_barangay_population($pdo, $barangay_id);
             $success = "Household updated successfully!";
-            
+
         } catch (Exception $e) {
             $pdo->rollBack();
             $error = "Error: " . $e->getMessage();
         }
+        } // end GPS validation block
     }
 }
 
 // Handle delete action
 if (isset($_GET['delete_id'])) {
-    $delete_id = $_GET['delete_id'];
-    
+    $delete_id = (int)$_GET['delete_id'];
+
+    // Get barangay_id before delete so we can sync population afterward
+    $bstmt = $pdo->prepare("SELECT barangay_id FROM households WHERE id = ?");
+    $bstmt->execute([$delete_id]);
+    $del_row = $bstmt->fetch(PDO::FETCH_ASSOC);
+
     $stmt = $pdo->prepare("DELETE FROM households WHERE id = ?");
     $stmt->execute([$delete_id]);
-    
+
+    if ($del_row) {
+        sync_barangay_population($pdo, $del_row['barangay_id']);
+    }
+
     header('Location: households.php?deleted=1');
     exit;
 }
@@ -726,23 +760,41 @@ $hazard_zones = $pdo->query("
                     value="<?php echo $edit_household ? $edit_household['minor_count'] : '0'; ?>" min="0" readonly>
             </div>
             
-            <div class="row">
-                <div class="col-md-6">
-                    <div class="mb-3">
+            <!-- GPS Picker (Phase 2) -->
+            <div class="mb-3">
+                <label class="form-label fw-bold">
+                    <i class="fas fa-map-marker-alt text-danger me-1"></i>
+                    GPS Location <span class="text-danger">*</span>
+                    <small class="text-muted fw-normal">(Required — use map picker below)</small>
+                </label>
+
+                <!-- Primary: Use Current Device Location -->
+                <button type="button" class="btn btn-success btn-sm mb-2" id="btnUseMyLocation">
+                    <i class="fas fa-location-arrow me-1"></i> Use Current Device Location
+                </button>
+                <small class="text-muted d-block mb-2">
+                    Recommended for field staff physically at the household. Alternatively, click on the map below.
+                </small>
+
+                <!-- Live coordinate display -->
+                <div class="row mb-2">
+                    <div class="col-md-6">
                         <label class="form-label">Latitude</label>
-                        <input type="text" name="latitude" class="form-control" 
-                            value="<?php echo $edit_household ? $edit_household['latitude'] : ''; ?>" 
-                            placeholder="e.g., 12.834567" step="any">
+                        <input type="text" name="latitude" id="inputLatitude" class="form-control"
+                            value="<?php echo $edit_household ? htmlspecialchars($edit_household['latitude']) : ''; ?>"
+                            placeholder="12.50 – 13.20" readonly required>
                     </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="mb-3">
+                    <div class="col-md-6">
                         <label class="form-label">Longitude</label>
-                        <input type="text" name="longitude" class="form-control" 
-                            value="<?php echo $edit_household ? $edit_household['longitude'] : ''; ?>" 
-                            placeholder="e.g., 120.768901" step="any">
+                        <input type="text" name="longitude" id="inputLongitude" class="form-control"
+                            value="<?php echo $edit_household ? htmlspecialchars($edit_household['longitude']) : ''; ?>"
+                            placeholder="120.50 – 121.20" readonly required>
                     </div>
                 </div>
+
+                <!-- Leaflet map picker -->
+                <div id="householdMapPicker" style="height:280px; border:2px solid #dee2e6; border-radius:6px;"></div>
+                <small class="text-muted">Click on the map to place the household marker. Drag the marker to adjust.</small>
             </div>
             
             <div class="d-flex gap-2">
@@ -1341,6 +1393,101 @@ $hazard_zones = $pdo->query("
         });
     </script>
     
+    <script>
+    // =====================================================================
+    // Phase 2 — Household GPS Map Picker
+    // =====================================================================
+    (function() {
+        const SABLAYAN = [12.8333, 120.7667];
+        const LAT_MIN = 12.50, LAT_MAX = 13.20;
+        const LNG_MIN = 120.50, LNG_MAX = 121.20;
+
+        const inputLat = document.getElementById('inputLatitude');
+        const inputLng = document.getElementById('inputLongitude');
+
+        if (!inputLat || !inputLng) return;
+
+        // Determine initial coordinates
+        let initLat = parseFloat(inputLat.value) || SABLAYAN[0];
+        let initLng = parseFloat(inputLng.value) || SABLAYAN[1];
+        let hasCoords = !!inputLat.value;
+
+        const pickerMap = L.map('householdMapPicker').setView([initLat, initLng], hasCoords ? 15 : 12);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(pickerMap);
+
+        let pickerMarker = null;
+
+        function setCoords(lat, lng) {
+            lat = parseFloat(lat.toFixed(8));
+            lng = parseFloat(lng.toFixed(8));
+            inputLat.value = lat;
+            inputLng.value = lng;
+            if (!pickerMarker) {
+                pickerMarker = L.marker([lat, lng], {draggable: true}).addTo(pickerMap);
+                pickerMarker.on('dragend', function(e) {
+                    const pos = e.target.getLatLng();
+                    setCoords(pos.lat, pos.lng);
+                });
+            } else {
+                pickerMarker.setLatLng([lat, lng]);
+            }
+            pickerMap.setView([lat, lng], 15);
+        }
+
+        // If editing, show existing marker
+        if (hasCoords) {
+            setCoords(initLat, initLng);
+        }
+
+        // Click on map to place marker
+        pickerMap.on('click', function(e) {
+            setCoords(e.latlng.lat, e.latlng.lng);
+        });
+
+        // Use Current Device Location button
+        document.getElementById('btnUseMyLocation').addEventListener('click', function() {
+            if (!navigator.geolocation) {
+                alert('Geolocation is not supported by this browser.');
+                return;
+            }
+            this.disabled = true;
+            this.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Getting location...';
+            const btn = this;
+            navigator.geolocation.getCurrentPosition(
+                function(pos) {
+                    setCoords(pos.coords.latitude, pos.coords.longitude);
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-check me-1"></i> Location Set';
+                },
+                function(err) {
+                    alert('Could not get location: ' + err.message);
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-location-arrow me-1"></i> Use Current Device Location';
+                },
+                {enableHighAccuracy: true, timeout: 10000}
+            );
+        });
+
+        // Validate GPS on form submit
+        const form = document.querySelector('form[method="POST"]') || inputLat.closest('form');
+        if (form) {
+            form.addEventListener('submit', function(e) {
+                const lat = parseFloat(inputLat.value);
+                const lng = parseFloat(inputLng.value);
+                if (isNaN(lat) || isNaN(lng)
+                    || lat < LAT_MIN || lat > LAT_MAX
+                    || lng < LNG_MIN || lng > LNG_MAX) {
+                    e.preventDefault();
+                    alert('Please set a valid GPS location using the map picker or "Use Current Device Location" button.\n\nLatitude: 12.50 – 13.20\nLongitude: 120.50 – 121.20');
+                    pickerMap.scrollIntoView({behavior:'smooth'});
+                }
+            });
+        }
+    })();
+    </script>
+
     <script>
 // Hazard icons mapping
 const hazardIcons = {

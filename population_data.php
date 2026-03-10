@@ -6,6 +6,7 @@ ini_set('display_startup_errors', 1);
 // population_data.php
 session_start();
 require_once 'config.php';
+require_once __DIR__ . '/functions/population_functions.php';
 
 $brgy_id = $_SESSION['barangay_id'];
 
@@ -108,12 +109,15 @@ if ($_POST && isset($_POST['submit_population'])) {
     }
     
     // Log the data entry
-    $stmt = $pdo->prepare("INSERT INTO data_entries (user_id, data_type, description) 
+    $stmt = $pdo->prepare("INSERT INTO data_entries (user_id, data_type, description)
                           VALUES (?, 'population', ?)");
     $stmt->execute([$_SESSION['user_id'], "Population data update for barangay ID: $barangay_id"]);
-    
-    $success = "Population data updated successfully!" . 
-               ($existing_data ? " Previous data archived." : "");
+
+    // Phase 6: Propagate update to barangays.population and hazard_zones.affected_population
+    handle_population_update($pdo, $barangay_id, $_SESSION['username']);
+
+    $success = "Population data updated successfully!" .
+               ($existing_data ? " Previous data archived. Barangay population and hazard zones updated." : " Barangay population synced.");
 }
 
 // Handle delete request

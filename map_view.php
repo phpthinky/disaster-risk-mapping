@@ -8,25 +8,56 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
+// Ensure boundary_geojson column exists
+try { $pdo->exec("ALTER TABLE barangays ADD COLUMN IF NOT EXISTS boundary_geojson LONGTEXT DEFAULT NULL"); } catch(PDOException $e) {}
+try { $pdo->exec("ALTER TABLE hazard_zones ADD COLUMN IF NOT EXISTS polygon_geojson LONGTEXT DEFAULT NULL"); } catch(PDOException $e) {}
+
 // Get all barangays with their hazard data and coordinates
 $barangays = $pdo->query("
-    SELECT 
+    SELECT
         b.*,
         COALESCE(pd.total_population, b.population) as display_population,
         pd.total_population as actual_population_data,
         b.population as base_population,
         COALESCE(SUM(hz.affected_population), 0) as total_affected,
         COUNT(hz.id) as hazard_count,
-        MAX(CASE WHEN hz.risk_level = 'high' THEN 1 ELSE 0 END) as has_high_risk
+        MAX(CASE WHEN hz.risk_level = 'high' THEN 1 ELSE 0 END) as has_high_risk,
+        b.boundary_geojson,
+        COUNT(DISTINCT hh.id) as household_count
     FROM barangays b
     LEFT JOIN hazard_zones hz ON b.id = hz.barangay_id
     LEFT JOIN (
-        SELECT barangay_id, MAX(total_population) as total_population 
-        FROM population_data 
+        SELECT barangay_id, MAX(total_population) as total_population
+        FROM population_data
         GROUP BY barangay_id
     ) as pd ON b.id = pd.barangay_id
-    GROUP BY b.id, b.name, b.coordinates, b.population, pd.total_population
+    LEFT JOIN households hh ON b.id = hh.barangay_id
+    GROUP BY b.id, b.name, b.coordinates, b.population, pd.total_population, b.boundary_geojson
 ")->fetchAll();
+
+// Get households with valid GPS coordinates for map layers
+$households_gps = $pdo->query("
+    SELECT h.id, h.household_head, h.barangay_id, h.family_members,
+           h.pwd_count, h.senior_count, h.infant_count, h.pregnant_count, h.minor_count,
+           h.latitude, h.longitude,
+           b.name as barangay_name
+    FROM households h
+    JOIN barangays b ON h.barangay_id = b.id
+    WHERE h.latitude BETWEEN 12.50 AND 13.20
+      AND h.longitude BETWEEN 120.50 AND 121.20
+")->fetchAll();
+
+// Get evacuation centers
+try {
+    $evacCenters = $pdo->query("
+        SELECT ec.*, b.name as barangay_name
+        FROM evacuation_centers ec
+        LEFT JOIN barangays b ON ec.barangay_id = b.id
+        WHERE ec.latitude IS NOT NULL AND ec.longitude IS NOT NULL
+    ")->fetchAll();
+} catch (PDOException $e) {
+    $evacCenters = [];
+}
 
 // Get all hazard zones with details
 $hazardZones = $pdo->query("
@@ -444,6 +475,8 @@ while ($row = $riskStatsStmt->fetch(PDO::FETCH_ASSOC)) {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Leaflet.heat for household density heatmap (Phase 5) -->
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
     <script>
         // Map variables
         let map;
@@ -456,28 +489,172 @@ while ($row = $riskStatsStmt->fetch(PDO::FETCH_ASSOC)) {
         let isMeasuring = false;
         let measurePoints = [];
 
+        // Phase 5 layer groups
+        let boundaryLayer, householdLayer, heatmapLayer, hazardPolygonLayer, evacLayer;
+        let layerControl;
+
         // Initialize the map
         function initMap() {
             // Coordinates for Sablayan, Occidental Mindoro
             const sablayanCoords = [12.8333, 120.7667];
-            
-            // Initialize the map
-            map = L.map('map').setView(sablayanCoords, 11);
-            
-            // Add OpenStreetMap tiles
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            }).addTo(map);
-            
+
+            // ── Phase 5: Base tile layers with switcher ──
+            const osmTile = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                maxZoom: 19
+            });
+            const satelliteTile = L.tileLayer(
+                'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'Tiles &copy; Esri', maxZoom: 19
+            });
+            const terrainTile = L.tileLayer(
+                'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenTopoMap contributors', maxZoom: 17
+            });
+
+            map = L.map('map', { layers: [osmTile] }).setView(sablayanCoords, 11);
+
+            const baseLayers = {
+                'Street (OpenStreetMap)': osmTile,
+                'Satellite': satelliteTile,
+                'Terrain': terrainTile
+            };
+
             // Load data from PHP
             const barangays = <?php echo json_encode($barangays); ?>;
             const hazardZones = <?php echo json_encode($hazardZones); ?>;
-            
-            // Initialize views
+            const householdsGPS = <?php echo json_encode($households_gps); ?>;
+            const evacCenters = <?php echo json_encode($evacCenters); ?>;
+
+            // ── Layer 2: Barangay boundary layer (always visible) ──
+            boundaryLayer = L.layerGroup();
+            barangays.forEach(function(b) {
+                if (b.boundary_geojson && b.boundary_geojson.trim()) {
+                    try {
+                        const gj = JSON.parse(b.boundary_geojson);
+                        const hazardTypes = [];
+                        hazardZones.forEach(hz => { if (hz.barangay_id == b.id) hazardTypes.push(hz.hazard_name); });
+                        L.geoJSON(gj, {
+                            style: { color: '#555', weight: 1.5, fillOpacity: 0.05 }
+                        }).bindPopup(
+                            '<strong>' + b.name + '</strong><br>' +
+                            'Population: ' + (b.display_population || 'N/A') + '<br>' +
+                            'Households: ' + (b.household_count || 0) + '<br>' +
+                            (hazardTypes.length ? 'Hazards: ' + [...new Set(hazardTypes)].join(', ') : 'No hazard zones')
+                        ).addTo(boundaryLayer);
+                    } catch(e) {}
+                } else {
+                    // No boundary — show grayed center dot
+                    let lat, lng;
+                    if (b.coordinates) {
+                        const p = b.coordinates.split(',');
+                        lat = parseFloat(p[0]); lng = parseFloat(p[1]);
+                    }
+                    if (lat && lng) {
+                        L.circleMarker([lat, lng], {
+                            radius: 6, color: '#aaa', fillColor: '#ccc', fillOpacity: 0.5, weight: 1
+                        }).bindPopup('<strong>' + b.name + '</strong><br><em class="text-muted">No boundary drawn yet</em>')
+                          .addTo(boundaryLayer);
+                    }
+                }
+            });
+            boundaryLayer.addTo(map);
+
+            // ── Layer 3: Household dots (off by default) ──
+            householdLayer = L.layerGroup();
+            householdsGPS.forEach(function(hh) {
+                const isVulnerable = hh.pwd_count > 0 || hh.senior_count > 0
+                                  || hh.infant_count > 0 || hh.pregnant_count > 0;
+                const color = isVulnerable ? '#dc3545' : '#0d6efd';
+                L.circleMarker([hh.latitude, hh.longitude], {
+                    radius: 4, color: color, fillColor: color, fillOpacity: 0.8, weight: 1
+                }).bindPopup(
+                    '<strong>' + hh.household_head + '</strong><br>' +
+                    'Barangay: ' + hh.barangay_name + '<br>' +
+                    'Family Members: ' + hh.family_members + '<br>' +
+                    (hh.pwd_count > 0 ? 'PWD: ' + hh.pwd_count + '<br>' : '') +
+                    (hh.senior_count > 0 ? 'Seniors: ' + hh.senior_count + '<br>' : '') +
+                    (hh.infant_count > 0 ? 'Infants: ' + hh.infant_count + '<br>' : '') +
+                    (hh.pregnant_count > 0 ? 'Pregnant: ' + hh.pregnant_count + '<br>' : '')
+                ).addTo(householdLayer);
+            });
+            // Not added to map by default — user toggles
+
+            // ── Layer 4: Household density heatmap (off by default) ──
+            const heatData = householdsGPS.map(function(hh) {
+                return [parseFloat(hh.latitude), parseFloat(hh.longitude), hh.family_members || 1];
+            });
+            if (typeof L.heatLayer !== 'undefined') {
+                heatmapLayer = L.heatLayer(heatData, { radius: 20, blur: 15, maxZoom: 16 });
+            } else {
+                heatmapLayer = L.layerGroup(); // fallback
+            }
+
+            // ── Layer 5: Hazard polygon layer (on by default) ──
+            // Already handled by existing initRiskView / initHazardsView — add polygon overlays here
+            hazardPolygonLayer = L.layerGroup();
+            const riskColors = {
+                'High Susceptible': '#dc3545',
+                'Moderate Susceptible': '#fd7e14',
+                'Low Susceptible': '#ffc107',
+                'Prone': '#6f42c1',
+                'General Inundation': '#6f42c1',
+                'high': '#dc3545',
+                'medium': '#fd7e14',
+                'low': '#ffc107'
+            };
+            hazardZones.forEach(function(hz) {
+                if (hz.polygon_geojson && hz.polygon_geojson.trim()) {
+                    try {
+                        const gj = JSON.parse(hz.polygon_geojson);
+                        const col = riskColors[hz.risk_level] || '#888';
+                        L.geoJSON(gj, {
+                            style: { color: col, weight: 2, fillOpacity: 0.3 }
+                        }).bindPopup(
+                            '<strong>' + hz.hazard_name + '</strong><br>' +
+                            'Barangay: ' + hz.barangay_name + '<br>' +
+                            'Risk: ' + hz.risk_level + '<br>' +
+                            'Affected: ' + (hz.affected_population || 0).toLocaleString() + ' persons'
+                        ).addTo(hazardPolygonLayer);
+                    } catch(e) {}
+                }
+            });
+            hazardPolygonLayer.addTo(map);
+
+            // ── Layer 7: Evacuation centers ──
+            const shelterIcon = L.divIcon({
+                html: '<i class="fas fa-house-medical" style="color:#198754;font-size:18px;"></i>',
+                className: '',
+                iconSize: [22, 22], iconAnchor: [11, 11], popupAnchor: [0, -12]
+            });
+            evacLayer = L.layerGroup();
+            evacCenters.forEach(function(ec) {
+                L.marker([ec.latitude, ec.longitude], {icon: shelterIcon})
+                    .bindPopup(
+                        '<strong>' + ec.name + '</strong><br>' +
+                        'Barangay: ' + (ec.barangay_name || 'N/A') + '<br>' +
+                        'Capacity: ' + (ec.capacity || 'N/A') + '<br>' +
+                        'Occupancy: ' + (ec.current_occupancy || 0) + '<br>' +
+                        'Status: ' + (ec.status || 'N/A')
+                    ).addTo(evacLayer);
+            });
+            evacLayer.addTo(map);
+
+            // ── Phase 5 Layer Control (top right) ──
+            const overlays = {
+                'Barangay Boundaries': boundaryLayer,
+                'Household Locations': householdLayer,
+                'Population Heatmap': heatmapLayer,
+                'Hazard Zone Polygons': hazardPolygonLayer,
+                'Evacuation Centers': evacLayer
+            };
+            layerControl = L.control.layers(baseLayers, overlays, { position: 'topright', collapsed: false }).addTo(map);
+
+            // Initialize existing views
             initRiskView(barangays, hazardZones);
             initPopulationView(barangays);
             initHazardsView(hazardZones);
-            
+
             // Show risk view by default
             showView('risk');
         }
