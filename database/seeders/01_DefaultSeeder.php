@@ -57,8 +57,8 @@ return new class {
         foreach ($hazardTypes as $h) $stmt->execute($h);
 
         // ── Default Users ──────────────────────
-        // Password for all: 'Admin@1234' — CHANGE THESE IN PRODUCTION!
-        $defaultPassword = password_hash('Admin@1234', PASSWORD_DEFAULT);
+        // Password for all: 'R!skMap@2026' — CHANGE THESE IN PRODUCTION!
+        $defaultPassword = password_hash('R!skMap@2026', PASSWORD_DEFAULT);
 
         $users = [
             [8, 'admin',          $defaultPassword, 'admin@sablayan.gov.ph',          null, 'admin'],
