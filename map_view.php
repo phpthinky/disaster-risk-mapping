@@ -234,8 +234,6 @@ while ($row = $riskStatsStmt->fetch(PDO::FETCH_ASSOC)) {
         
         .main-content {
             padding: 20px;
-            height: calc(100vh - 56px);
-            overflow-y: auto;
         }
         
         .btn-group .btn {
@@ -497,16 +495,14 @@ while ($row = $riskStatsStmt->fetch(PDO::FETCH_ASSOC)) {
         // Map variables
         let map;
         let currentView = 'risk';
-        let barangayMarkers = [];
-        let hazardLayers = [];
-        let populationLayers = [];
         let searchControl;
         let measureControl;
         let isMeasuring = false;
         let measurePoints = [];
 
-        // Phase 5 layer groups
-        let boundaryLayer, householdLayer, heatmapLayer, hazardPolygonLayer, evacLayer;
+        // Layer groups
+        let boundaryLayer, riskBoundaryLayer, popBoundaryLayer;
+        let householdLayer, heatmapLayer, hazardPolygonLayer, evacLayer, incidentLayer;
         let layerControl;
 
         // Initialize the map
@@ -528,11 +524,11 @@ while ($row = $riskStatsStmt->fetch(PDO::FETCH_ASSOC)) {
                 attribution: '&copy; OpenTopoMap contributors', maxZoom: 17
             });
 
-            map = L.map('map', { layers: [osmTile] }).setView(sablayanCoords, 11);
+            map = L.map('map', { layers: [satelliteTile] }).setView(sablayanCoords, 11);
 
             const baseLayers = {
-                'Street (OpenStreetMap)': osmTile,
                 'Satellite': satelliteTile,
+                'Street (OpenStreetMap)': osmTile,
                 'Terrain': terrainTile
             };
 
@@ -574,7 +570,7 @@ while ($row = $riskStatsStmt->fetch(PDO::FETCH_ASSOC)) {
                     }
                 }
             });
-            boundaryLayer.addTo(map);
+            // boundaryLayer added by showView
 
             // ── Layer 3: Household dots (off by default) ──
             householdLayer = L.layerGroup();
@@ -635,7 +631,7 @@ while ($row = $riskStatsStmt->fetch(PDO::FETCH_ASSOC)) {
                     } catch(e) {}
                 }
             });
-            hazardPolygonLayer.addTo(map);
+            // hazardPolygonLayer added by showView
 
             // ── Layer 7: Evacuation centers ──
             const shelterIcon = L.divIcon({
@@ -656,10 +652,9 @@ while ($row = $riskStatsStmt->fetch(PDO::FETCH_ASSOC)) {
             });
             evacLayer.addTo(map);
 
-            // ── Phase 5 Layer Control (top right) ──
             // ── Layer 6: Incident polygons (ongoing/monitoring — on by default) ──
             const incidentData = <?php echo json_encode($incidentPolygons); ?>;
-            const incidentLayer = L.layerGroup();
+            incidentLayer = L.layerGroup();
             incidentData.forEach(function(inc) {
                 if (!inc.polygon_geojson) return;
                 try {
@@ -678,8 +673,14 @@ while ($row = $riskStatsStmt->fetch(PDO::FETCH_ASSOC)) {
             });
             incidentLayer.addTo(map);
 
+            // Build risk and population boundary layers
+            initRiskBoundaries(barangays, hazardZones);
+            initPopBoundaries(barangays);
+
             const overlays = {
                 'Barangay Boundaries': boundaryLayer,
+                'Risk Boundaries': riskBoundaryLayer,
+                'Population Boundaries': popBoundaryLayer,
                 'Household Locations': householdLayer,
                 'Population Heatmap': heatmapLayer,
                 'Hazard Zone Polygons': hazardPolygonLayer,
@@ -688,275 +689,95 @@ while ($row = $riskStatsStmt->fetch(PDO::FETCH_ASSOC)) {
             };
             layerControl = L.control.layers(baseLayers, overlays, { position: 'topright', collapsed: false }).addTo(map);
 
-            // Initialize existing views
-            initRiskView(barangays, hazardZones);
-            initPopulationView(barangays);
-            initHazardsView(hazardZones);
+            // Always-on layers
+            incidentLayer.addTo(map);
+            evacLayer.addTo(map);
 
             // Show risk view by default
             showView('risk');
         }
 
-        // Initialize Risk View
-        function initRiskView(barangays, hazardZones) {
-            barangayMarkers = [];
-            
-            barangays.forEach(barangay => {
-                // Use actual coordinates from database
-                let lat, lng;
-                if (barangay.coordinates) {
-                    const coords = barangay.coordinates.split(',');
-                    lat = parseFloat(coords[0].trim());
-                    lng = parseFloat(coords[1].trim());
-                } else {
-                    // Fallback to approximate coordinates if none provided
-                    lat = 12.8333 + (Math.random() - 0.5) * 0.1;
-                    lng = 120.7667 + (Math.random() - 0.5) * 0.1;
-                }
-                
-                // Determine risk level and color
-                let riskLevel = 'none';
-                let color = '#95a5a6'; // gray for no data
-                
-                if (barangay.has_high_risk) {
-                    riskLevel = 'high';
-                    color = '#e74c3c';
-                } else if (barangay.hazard_count > 0) {
-                    riskLevel = 'medium';
-                    color = '#f39c12';
-                } else if (barangay.total_affected > 0) {
-                    riskLevel = 'low';
-                    color = '#27ae60';
-                }
-                
-                // Create marker
-                const marker = L.circleMarker([lat, lng], {
-                    radius: 12 + (barangay.total_affected / 200),
-                    fillColor: color,
-                    color: '#2c3e50',
-                    weight: 2,
-                    opacity: 1,
-                    fillOpacity: 0.7
-                });
-                
-                // Add popup with barangay information
-                const populationSource = barangay.actual_population_data ? 'Updated Data' : 'Base Data';
-                marker.bindPopup(`
-                    <div class="text-center">
-                        <h6><strong>${barangay.name}</strong></h6>
-                        <hr class="my-2">
-                        <p class="mb-1"><strong>Population:</strong> ${barangay.display_population?.toLocaleString() || 'N/A'}</p>
-                        <p class="mb-1"><small class="text-muted">Source: ${populationSource}</small></p>
-                        <p class="mb-1"><strong>Hazard Zones:</strong> ${barangay.hazard_count}</p>
-                        <p class="mb-1"><strong>Affected Population:</strong> ${barangay.total_affected.toLocaleString()}</p>
-                        <p class="mb-0"><strong>Risk Level:</strong> <span class="risk-${riskLevel}">${riskLevel.charAt(0).toUpperCase() + riskLevel.slice(1)}</span></p>
-                    </div>
-                `);
-                
-                marker.bindTooltip(`${barangay.name} - ${riskLevel.toUpperCase()} RISK`);
-                
-                barangayMarkers.push(marker);
+        // Build risk-colored boundary polygons
+        function initRiskBoundaries(barangays, hazardZones) {
+            riskBoundaryLayer = L.layerGroup();
+            barangays.forEach(function(b) {
+                if (!b.boundary_geojson || !b.boundary_geojson.trim()) return;
+                try {
+                    const gj = JSON.parse(b.boundary_geojson);
+                    let color = '#95a5a6';
+                    let riskLabel = 'No Data';
+                    if (b.has_high_risk) { color = '#e74c3c'; riskLabel = 'High'; }
+                    else if (b.hazard_count > 0) { color = '#f39c12'; riskLabel = 'Medium'; }
+                    else if (b.total_affected > 0) { color = '#27ae60'; riskLabel = 'Low'; }
+                    L.geoJSON(gj, {
+                        style: { color: color, weight: 2, fillColor: color, fillOpacity: 0.35 }
+                    }).bindPopup(
+                        '<strong>' + b.name + '</strong><br>' +
+                        'Risk Level: <strong>' + riskLabel + '</strong><br>' +
+                        'Population: ' + (b.display_population ? parseInt(b.display_population).toLocaleString() : 'N/A') + '<br>' +
+                        'Hazard Zones: ' + b.hazard_count + '<br>' +
+                        'Affected: ' + parseInt(b.total_affected).toLocaleString()
+                    ).bindTooltip(b.name + ' — ' + riskLabel.toUpperCase() + ' RISK')
+                    .addTo(riskBoundaryLayer);
+                } catch(e) {}
             });
         }
 
-        // Initialize Population View
-        function initPopulationView(barangays) {
-            populationLayers = [];
-            
-            barangays.forEach(barangay => {
-                // Use actual coordinates from database
-                let lat, lng;
-                let hasValidCoordinates = false;
-                
-                if (barangay.coordinates) {
-                    try {
-                        const coords = barangay.coordinates.split(',');
-                        lat = parseFloat(coords[0].trim());
-                        lng = parseFloat(coords[1].trim());
-                        
-                        // Validate coordinates
-                        if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
-                            hasValidCoordinates = true;
-                        }
-                    } catch (error) {
-                        console.error('Error parsing coordinates for barangay:', barangay.name, error);
-                    }
-                }
-                
-                if (!hasValidCoordinates) {
-                    // Fallback to Sablayan center coordinates
-                    lat = 12.8333;
-                    lng = 120.7667;
-                    console.warn(`Using default coordinates for barangay: ${barangay.name}`);
-                }
-                
-                // Size based on population (with fallback)
-                const population = barangay.display_population || 0;
-                const radius = Math.max(8, Math.min(30, population / 1000));
-                const populationSource = barangay.actual_population_data ? 'Updated Data' : 'Base Data';
-                
-                const circle = L.circleMarker([lat, lng], {
-                    radius: radius,
-                    fillColor: '#3498db',
-                    color: '#2980b9',
-                    weight: 2,
-                    opacity: 1,
-                    fillOpacity: 0.5
-                });
-                
-                circle.bindPopup(`
-                    <div class="text-center">
-                        <h6><strong>${barangay.name}</strong></h6>
-                        <hr class="my-2">
-                        <p class="mb-1"><strong>Total Population:</strong> ${population.toLocaleString()}</p>
-                        <p class="mb-1"><small class="text-muted">Source: ${populationSource}</small></p>
-                        <p class="mb-1"><strong>At Risk:</strong> ${barangay.total_affected.toLocaleString()}</p>
-                        <p class="mb-0"><strong>Risk Percentage:</strong> ${population ? Math.round((barangay.total_affected / population) * 100) : 0}%</p>
-                    </div>
-                `);
-                
-                circle.bindTooltip(`${barangay.name} - Pop: ${population.toLocaleString()} (${populationSource})`);
-                
-                populationLayers.push(circle);
+        // Build population-colored boundary polygons
+        function initPopBoundaries(barangays) {
+            popBoundaryLayer = L.layerGroup();
+            const maxPop = Math.max(...barangays.map(b => b.display_population || 0), 1);
+            barangays.forEach(function(b) {
+                if (!b.boundary_geojson || !b.boundary_geojson.trim()) return;
+                try {
+                    const gj = JSON.parse(b.boundary_geojson);
+                    const pop = b.display_population || 0;
+                    const ratio = pop / maxPop;
+                    // Blue gradient: light (low pop) → dark (high pop)
+                    const lightness = Math.round(75 - ratio * 40);
+                    const fillColor = 'hsl(210, 70%, ' + lightness + '%)';
+                    L.geoJSON(gj, {
+                        style: { color: '#2980b9', weight: 2, fillColor: fillColor, fillOpacity: 0.55 }
+                    }).bindPopup(
+                        '<strong>' + b.name + '</strong><br>' +
+                        'Population: <strong>' + pop.toLocaleString() + '</strong><br>' +
+                        'Households: ' + (b.household_count || 0) + '<br>' +
+                        'At Risk: ' + parseInt(b.total_affected).toLocaleString() + '<br>' +
+                        'Risk %: ' + (pop ? Math.round((b.total_affected / pop) * 100) : 0) + '%'
+                    ).bindTooltip(b.name + ' — Pop: ' + pop.toLocaleString())
+                    .addTo(popBoundaryLayer);
+                } catch(e) {}
             });
         }
 
-function initHazardsView(hazardZones) {
-    hazardLayers = [];
-    
-    hazardZones.forEach(hazard => {
-        // Use actual coordinates from database
-        let lat, lng;
-        if (hazard.coordinates) {
-            const coords = hazard.coordinates.split(',');
-            lat = parseFloat(coords[0].trim());
-            lng = parseFloat(coords[1].trim());
-        } else {
-            // Fallback to barangay coordinates if hazard coordinates not available
-            const barangay = <?php echo json_encode($barangays); ?>.find(b => b.name === hazard.barangay_name);
-            if (barangay && barangay.coordinates) {
-                const barangayCoords = barangay.coordinates.split(',');
-                lat = parseFloat(barangayCoords[0].trim());
-                lng = parseFloat(barangayCoords[1].trim());
-            } else {
-                // Final fallback to random coordinates
-                lat = 12.8333 + (Math.random() - 0.5) * 0.1;
-                lng = 120.7667 + (Math.random() - 0.5) * 0.1;
+        // Show specific view using polygon layers
+        function showView(view) {
+            currentView = view;
+
+            // Remove view-specific layers
+            [riskBoundaryLayer, popBoundaryLayer, boundaryLayer, hazardPolygonLayer, householdLayer, heatmapLayer].forEach(function(l) {
+                if (l && map.hasLayer(l)) map.removeLayer(l);
+            });
+
+            switch(view) {
+                case 'risk':
+                    riskBoundaryLayer.addTo(map);
+                    hazardPolygonLayer.addTo(map);
+                    break;
+                case 'population':
+                    popBoundaryLayer.addTo(map);
+                    householdLayer.addTo(map);
+                    break;
+                case 'hazards':
+                    boundaryLayer.addTo(map);
+                    hazardPolygonLayer.addTo(map);
+                    break;
             }
+
+            document.getElementById('riskViewBtn').classList.toggle('active', view === 'risk');
+            document.getElementById('populationViewBtn').classList.toggle('active', view === 'population');
+            document.getElementById('hazardsViewBtn').classList.toggle('active', view === 'hazards');
         }
-        
-        // Create custom icon based on hazard type
-        const hazardIcon = createHazardIcon(hazard.hazard_name, hazard.risk_level);
-        
-        // Add hazard area circle with semi-transparent fill
-        const hazardArea = L.circle([lat, lng], {
-            color: hazard.color,
-            fillColor: hazard.color,
-            fillOpacity: 0.2,
-            radius: hazard.area_km2 * 100,
-            weight: 2
-        });
-        
-        // Add marker with hazard icon at the center
-        const hazardMarker = L.marker([lat, lng], { icon: hazardIcon });
-        
-        // Bind popup with hazard information
-        hazardMarker.bindPopup(`
-            <div class="text-center" style="min-width: 200px;">
-                <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 10px;">
-                    <div style="
-                        background: ${hazard.color}; 
-                        width: 40px; 
-                        height: 40px; 
-                        border-radius: 50%; 
-                        display: flex; 
-                        align-items: center; 
-                        justify-content: center;
-                        margin-right: 10px;
-                        color: white;
-                    ">
-                        <i class="fas ${hazard.icon || 'fa-exclamation-triangle'}"></i>
-                    </div>
-                    <div>
-                        <h6 style="margin: 0;"><strong>${hazard.hazard_name}</strong></h6>
-                    <div class="badge ${
-                        hazard.risk_level === 'High Susceptible' || hazard.risk_level === 'high' || hazard.risk_level === 'Prone' ? 'bg-danger' : 
-                        hazard.risk_level === 'Moderate Susceptible' || hazard.risk_level === 'medium' || hazard.risk_level === 'General Inundation' ? 'bg-warning text-dark' : 
-                        hazard.risk_level === 'Low Susceptible' || hazard.risk_level === 'low' ? 'bg-success' : 
-                        hazard.risk_level === 'Generally Susceptible' ? 'bg-info' : 
-                        hazard.risk_level.includes('PEIS') ? 'bg-purple' : 
-                        'bg-secondary'
-                    }">
-                        ${hazard.risk_level}
-                    </div>
-                    </div>
-                </div>
-                <hr style="margin: 10px 0;">
-                <div style="text-align: left;">
-                    <p style="margin: 5px 0;"><strong>Barangay:</strong> ${hazard.barangay_name}</p>
-                    <p style="margin: 5px 0;"><strong>Area:</strong> ${hazard.area_km2} km²</p>
-                    <p style="margin: 5px 0;"><strong>Affected Population:</strong> ${hazard.affected_population.toLocaleString()}</p>
-                    <p style="margin: 5px 0;"><strong>Total Population:</strong> ${hazard.barangay_population?.toLocaleString() || 'N/A'}</p>
-                    ${hazard.description ? `<p style="margin: 5px 0;"><strong>Description:</strong> ${hazard.description}</p>` : ''}
-                </div>
-            </div>
-        `);
-        
-        // Bind tooltip
-        hazardMarker.bindTooltip(`
-            <div style="text-align: center;">
-                <strong>${hazard.hazard_name}</strong><br>
-                ${hazard.barangay_name}<br>
-                <span style="color: ${hazard.color}">●</span> ${hazard.risk_level.toUpperCase()} RISK
-            </div>
-        `);
-        
-        // Create a layer group for the hazard area and marker
-        const hazardLayer = L.layerGroup([hazardArea, hazardMarker]);
-        hazardLayers.push(hazardLayer);
-    });
-}
-
-function toggleHazardIcons(show) {
-    hazardLayers.forEach(layer => {
-        if (show) {
-            if (currentView === 'hazards') {
-                layer.addTo(map);
-            }
-        } else {
-            map.removeLayer(layer);
-        }
-    });
-}
-
-
-        // Show specific view
-function showView(view) {
-    currentView = view;
-    
-    // Clear all layers first
-    barangayMarkers.forEach(marker => map.removeLayer(marker));
-    populationLayers.forEach(layer => map.removeLayer(layer));
-    hazardLayers.forEach(layer => map.removeLayer(layer));
-    
-    // Add layers for current view
-    switch(view) {
-        case 'risk':
-            barangayMarkers.forEach(marker => marker.addTo(map));
-            break;
-        case 'population':
-            populationLayers.forEach(layer => layer.addTo(map));
-            break;
-        case 'hazards':
-            hazardLayers.forEach(layer => layer.addTo(map));
-            break;
-    }
-    
-    // Update button states
-    document.getElementById('riskViewBtn').classList.toggle('active', view === 'risk');
-    document.getElementById('populationViewBtn').classList.toggle('active', view === 'population');
-    document.getElementById('hazardsViewBtn').classList.toggle('active', view === 'hazards');
-}
 
 
         // SEARCH LOCATION FUNCTIONALITY

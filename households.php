@@ -1210,10 +1210,15 @@ $hazard_zones = $pdo->query("
             // Initialize the map
             map = L.map('householdMap').setView(sablayanCoords, 12);
             
-            // Add OpenStreetMap tiles
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            }).addTo(map);
+            // Base tile layers
+            const streetTileHH = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors', maxZoom: 19
+            });
+            const satelliteTileHH = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'Tiles &copy; Esri', maxZoom: 19
+            });
+            satelliteTileHH.addTo(map);
+            L.control.layers({ 'Satellite': satelliteTileHH, 'Street': streetTileHH }, {}, { position: 'topright' }).addTo(map);
 
             // Add hazard zones to map
             const hazardZones = <?php echo json_encode($hazard_zones); ?>;
@@ -1413,9 +1418,14 @@ $hazard_zones = $pdo->query("
         let hasCoords = !!inputLat.value;
 
         const pickerMap = L.map('householdMapPicker').setView([initLat, initLng], hasCoords ? 15 : 12);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; OpenStreetMap contributors'
-        }).addTo(pickerMap);
+        const streetTileP = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors', maxZoom: 19
+        });
+        const satelliteTileP = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri', maxZoom: 19
+        });
+        satelliteTileP.addTo(pickerMap);
+        L.control.layers({ 'Satellite': satelliteTileP, 'Street': streetTileP }, {}, { position: 'topright' }).addTo(pickerMap);
 
         let pickerMarker = null;
 

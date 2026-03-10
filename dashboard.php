@@ -242,8 +242,6 @@ $announcements = $stmt->fetchAll();
         
         .main-content {
             padding: 20px;
-            height: calc(100vh - 56px);
-            overflow-y: auto;
         }
         
         /* Announcement Card Enhancements */
@@ -516,10 +514,15 @@ function initMapPreview() {
     // Initialize the preview map
     const previewMap = L.map('map-preview').setView(sablayanCoords, 11);
     
-    // Add OpenStreetMap tiles
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-    }).addTo(previewMap);
+    // Base tile layers
+    const streetTile = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors', maxZoom: 19
+    });
+    const satelliteTile = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles &copy; Esri &mdash; Source: Esri, USGS, NOAA', maxZoom: 19
+    });
+    satelliteTile.addTo(previewMap);
+    L.control.layers({ 'Satellite': satelliteTile, 'Street': streetTile }, {}, { position: 'topright' }).addTo(previewMap);
     
     // Add barangay markers from database data
     const barangays = <?php echo json_encode($barangays); ?>;

@@ -384,9 +384,14 @@ if (isset($_GET['view_id'])) {
             <script>
             (function() {
                 const map = L.map('viewMap').setView([12.8333, 120.7667], 12);
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    attribution: '&copy; OpenStreetMap contributors'
-                }).addTo(map);
+                const streetTileV = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; OpenStreetMap contributors', maxZoom: 19
+                });
+                const satelliteTileV = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                    attribution: 'Tiles &copy; Esri', maxZoom: 19
+                });
+                satelliteTileV.addTo(map);
+                L.control.layers({ 'Satellite': satelliteTileV, 'Street': streetTileV }, {}, { position: 'topright' }).addTo(map);
                 const gj = JSON.parse(<?php echo json_encode($view_incident['polygon_geojson']); ?>);
                 const layer = L.geoJSON(gj, {style:{color:'#dc3545',weight:2,fillOpacity:0.2}}).addTo(map);
                 map.fitBounds(layer.getBounds());
@@ -564,9 +569,14 @@ if (isset($_GET['view_id'])) {
     if (!mapEl) return;
 
     const map = L.map('incidentMapPicker').setView([12.8333, 120.7667], 12);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
+    const streetTileI = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors', maxZoom: 19
+    });
+    const satelliteTileI = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles &copy; Esri', maxZoom: 19
+    });
+    satelliteTileI.addTo(map);
+    L.control.layers({ 'Satellite': satelliteTileI, 'Street': streetTileI }, {}, { position: 'topright' }).addTo(map);
 
     const drawnItems = new L.FeatureGroup();
     map.addLayer(drawnItems);
