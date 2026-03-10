@@ -2413,9 +2413,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const SABLAYAN = [12.8333, 120.7667];
     const hazardMap = L.map('hazardMapPicker').setView(SABLAYAN, 12);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(hazardMap);
+    const streetTileH = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors', maxZoom: 19
+    });
+    const satelliteTileH = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles &copy; Esri', maxZoom: 19
+    });
+    satelliteTileH.addTo(hazardMap);
+    L.control.layers({ 'Satellite': satelliteTileH, 'Street': streetTileH }, {}, { position: 'topright' }).addTo(hazardMap);
 
     const drawnItems = new L.FeatureGroup();
     hazardMap.addLayer(drawnItems);

@@ -174,9 +174,14 @@ $mapped = array_sum(array_column($barangays, 'has_boundary'));
 <script>
 const SABLAYAN = [12.8333, 120.7667];
 const map = L.map('map').setView(SABLAYAN, 12);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors'
-}).addTo(map);
+const streetTile = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors', maxZoom: 19
+});
+const satelliteTile = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: 'Tiles &copy; Esri', maxZoom: 19
+});
+satelliteTile.addTo(map);
+L.control.layers({ 'Satellite': satelliteTile, 'Street': streetTile }, {}, { position: 'topright' }).addTo(map);
 
 // Leaflet Draw setup
 const drawnItems = new L.FeatureGroup();

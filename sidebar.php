@@ -197,6 +197,32 @@ $currentPage = basename($_SERVER['PHP_SELF']);
 </div>
 
 <style>
+/* Prevent double scrollbar: body must not scroll when main-content scrolls */
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
+/* Ensure all sidebar-layout pages have a scrollable main area */
+.main-content {
+  height: calc(100vh - 56px);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+.sidebar {
+  height: calc(100vh - 56px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: sticky;
+  top: 56px;
+}
+@media (max-width: 767.98px) {
+  .sidebar {
+    position: fixed;
+    top: 0;
+    height: 100vh;
+    z-index: 1040;
+  }
+}
 .sidebar .nav-link:hover {
   background-color: #495057;
   color: #fff;
@@ -211,12 +237,6 @@ $currentPage = basename($_SERVER['PHP_SELF']);
 }
 .sidebar .nav-link {
   margin-bottom: 12px;
-}
-@media (max-width: 767.98px) {
-  .sidebar {
-    position: fixed;
-    z-index: 1040;
-  }
 }
 
 /* GIS Loading Styles */

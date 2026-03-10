@@ -653,10 +653,15 @@ $evac_centers = $pdo->query("
             // Initialize the map
             map = L.map('evacMap').setView(sablayanCoords, 12);
             
-            // Add OpenStreetMap tiles
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            }).addTo(map);
+            // Base tile layers
+            const streetTileE = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors', maxZoom: 19
+            });
+            const satelliteTileE = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'Tiles &copy; Esri', maxZoom: 19
+            });
+            satelliteTileE.addTo(map);
+            L.control.layers({ 'Satellite': satelliteTileE, 'Street': streetTileE }, {}, { position: 'topright' }).addTo(map);
 
             // Add evacuation centers to map
             const evacCenters = <?php echo json_encode($evac_centers); ?>;
@@ -861,10 +866,15 @@ document.querySelectorAll('.view-map').forEach(btn => {
         setTimeout(() => {
             detailMap = L.map('detailMap').setView([latitude, longitude], 15);
             
-            // Add OpenStreetMap tiles
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            }).addTo(detailMap);
+            // Base tile layers
+            const streetTileD = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors', maxZoom: 19
+            });
+            const satelliteTileD = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'Tiles &copy; Esri', maxZoom: 19
+            });
+            satelliteTileD.addTo(detailMap);
+            L.control.layers({ 'Satellite': satelliteTileD, 'Street': streetTileD }, {}, { position: 'topright' }).addTo(detailMap);
             
             // Remove existing marker
             if (detailMarker) {
