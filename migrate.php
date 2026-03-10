@@ -50,7 +50,6 @@ function banner(string $title): void {
 
 function getConnection(): PDO {
     require_once __DIR__ . '/config.php';
-    global $pdo;
     if (!isset($pdo)) {
         error("No \$pdo connection found in config.php");
         exit(1);
