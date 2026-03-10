@@ -1,5 +1,10 @@
 <?php
 // hazard_data.php
+// Hazard zones = permanent pre-mapped risk assessment areas.
+// Drawing a polygon here auto-computes the total population living in the danger zone.
+// This is the RISK ASSESSMENT figure (who lives in the zone, not who was affected by an event).
+// For actual disaster event tracking, use incident_reports.php.
+
 session_start();
 require_once 'config.php';
 require_once __DIR__ . '/functions/population_functions.php';
@@ -9,125 +14,75 @@ try {
     $pdo->exec("ALTER TABLE hazard_zones ADD COLUMN IF NOT EXISTS polygon_geojson LONGTEXT DEFAULT NULL");
 } catch (PDOException $e) { /* already exists */ }
 
-// AJAX: compute affected population from a drawn polygon (returns JSON)
-if (isset($_POST['action']) && $_POST['action'] === 'compute_polygon_population') {
+// AJAX: compute population from drawn hazard zone polygon
+if (isset($_POST['action']) && $_POST['action'] === 'compute_hazard_population') {
     header('Content-Type: application/json');
-    $barangay_id = (int)($_POST['barangay_id'] ?? 0);
-    $geojson_str  = $_POST['polygon_geojson'] ?? '';
-
+    $geojson_str = $_POST['polygon_geojson'] ?? '';
     $geojson = json_decode($geojson_str, true);
-    if (!$geojson) {
-        echo json_encode(['success' => false, 'message' => 'Invalid GeoJSON']);
-        exit;
-    }
+    if (!$geojson) { echo json_encode(['success'=>false,'message'=>'Invalid GeoJSON']); exit; }
 
-    // Extract polygon ring from GeoJSON (FeatureCollection or Feature or Polygon)
+    // Extract ring
     $ring = [];
-    if ($geojson['type'] === 'FeatureCollection' && !empty($geojson['features'])) {
-        $geo = $geojson['features'][0]['geometry'];
-    } elseif ($geojson['type'] === 'Feature') {
-        $geo = $geojson['geometry'];
-    } else {
-        $geo = $geojson;
-    }
-    if ($geo['type'] === 'Polygon') {
-        $ring = $geo['coordinates'][0]; // outer ring [[lng,lat],...]
-    }
+    $geo = $geojson;
+    if ($geojson['type'] === 'FeatureCollection' && !empty($geojson['features'])) $geo = $geojson['features'][0]['geometry'];
+    elseif ($geojson['type'] === 'Feature') $geo = $geojson['geometry'];
+    if (isset($geo['type']) && $geo['type'] === 'Polygon') $ring = $geo['coordinates'][0];
 
-    if (empty($ring)) {
-        echo json_encode(['success' => false, 'message' => 'No polygon found in GeoJSON']);
-        exit;
-    }
+    if (empty($ring)) { echo json_encode(['success'=>false,'message'=>'No polygon found']); exit; }
 
-    // Fetch all households with valid coordinates in that barangay
-    $where_brgy = $barangay_id ? "WHERE barangay_id = $barangay_id AND" : "WHERE";
+    // Count all households in the zone
     $hh_stmt = $pdo->query("
-        SELECT family_members, pwd_count, pregnant_count, senior_count, infant_count, minor_count,
-               latitude, longitude
+        SELECT family_members, pwd_count, senior_count, infant_count, minor_count, pregnant_count, latitude, longitude
         FROM households
-        WHERE latitude IS NOT NULL AND longitude IS NOT NULL
-          AND latitude BETWEEN 12.50 AND 13.20
-          AND longitude BETWEEN 120.50 AND 121.20
-          " . ($barangay_id ? "AND barangay_id = $barangay_id" : "") . "
+        WHERE latitude BETWEEN 12.50 AND 13.20 AND longitude BETWEEN 120.50 AND 121.20
     ");
-    $households = $hh_stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    $aff_households = 0;
-    $aff_population = 0;
-    $aff_pwd = 0;
-    $aff_pregnant = 0;
-    $aff_seniors = 0;
-    $aff_infants = 0;
-    $aff_minors = 0;
-
-    foreach ($households as $hh) {
-        // point_in_polygon expects [lng,lat] pairs — ring is already [lng,lat]
+    $total_hh = 0; $total_pop = 0;
+    foreach ($hh_stmt->fetchAll(PDO::FETCH_ASSOC) as $hh) {
         if (point_in_polygon((float)$hh['latitude'], (float)$hh['longitude'], $ring)) {
-            $aff_households++;
-            $aff_population += (int)$hh['family_members'];
-            $aff_pwd       += (int)$hh['pwd_count'];
-            $aff_pregnant  += (int)$hh['pregnant_count'];
-            $aff_seniors   += (int)$hh['senior_count'];
-            $aff_infants   += (int)$hh['infant_count'];
-            $aff_minors    += (int)$hh['minor_count'];
+            $total_hh++;
+            $total_pop += (int)$hh['family_members'];
         }
     }
-
-    echo json_encode([
-        'success'          => true,
-        'affected_households' => $aff_households,
-        'affected_population' => $aff_population,
-        'affected_pwd'        => $aff_pwd,
-        'affected_pregnant'   => $aff_pregnant,
-        'affected_seniors'    => $aff_seniors,
-        'affected_infants'    => $aff_infants,
-        'affected_minors'     => $aff_minors,
-    ]);
+    echo json_encode(['success'=>true, 'total_households'=>$total_hh, 'total_population'=>$total_pop]);
     exit;
+}
+
+// Helper to extract population from polygon
+function compute_population_in_polygon($pdo, $polygon_geojson_str) {
+    if (!$polygon_geojson_str) return null;
+    $geojson = json_decode($polygon_geojson_str, true);
+    if (!$geojson) return null;
+    $geo = $geojson;
+    if ($geojson['type'] === 'FeatureCollection' && !empty($geojson['features'])) $geo = $geojson['features'][0]['geometry'];
+    elseif ($geojson['type'] === 'Feature') $geo = $geojson['geometry'];
+    if (!isset($geo['type']) || $geo['type'] !== 'Polygon') return null;
+    $ring = $geo['coordinates'][0];
+
+    $hh_stmt = $pdo->query("SELECT family_members, latitude, longitude FROM households
+        WHERE latitude BETWEEN 12.50 AND 13.20 AND longitude BETWEEN 120.50 AND 121.20");
+    $total = 0;
+    foreach ($hh_stmt->fetchAll(PDO::FETCH_ASSOC) as $hh) {
+        if (point_in_polygon((float)$hh['latitude'], (float)$hh['longitude'], $ring)) {
+            $total += (int)$hh['family_members'];
+        }
+    }
+    return $total;
 }
 
 // Handle form submission
 if ($_POST) {
     if (isset($_POST['submit_hazard'])) {
-        $hazard_type_id = $_POST['hazard_type_id'];
-        // For barangay staff, automatically use their barangay_id
-        $barangay_id = ($_SESSION['role'] == 'barangay_staff') ? $_SESSION['barangay_id'] : (int)$_POST['barangay_id'];
-        $risk_level = $_POST['risk_level'];
-        $area_km2 = $_POST['area_km2'];
-        $description = $_POST['description'];
+        $hazard_type_id  = $_POST['hazard_type_id'];
+        $barangay_id     = ($_SESSION['role'] == 'barangay_staff') ? $_SESSION['barangay_id'] : $_POST['barangay_id'];
+        $risk_level      = $_POST['risk_level'];
+        $area_km2        = $_POST['area_km2'];
+        $description     = $_POST['description'];
+        $coordinates     = $_POST['coordinates'];
         $polygon_geojson = $_POST['polygon_geojson'] ?? null;
 
-        // Derive center coordinates from polygon centroid or fallback to barangay coords
-        $coordinates = $_POST['coordinates'] ?? '';
-
-        // Auto-compute affected_population from polygon if provided
+        // Auto-compute affected_population from polygon if drawn; else use manual entry
         if ($polygon_geojson) {
-            $geojson = json_decode($polygon_geojson, true);
-            $ring = [];
-            if ($geojson['type'] === 'FeatureCollection' && !empty($geojson['features'])) {
-                $geo = $geojson['features'][0]['geometry'];
-            } elseif ($geojson['type'] === 'Feature') {
-                $geo = $geojson['geometry'];
-            } else {
-                $geo = $geojson;
-            }
-            if ($geo['type'] === 'Polygon') {
-                $ring = $geo['coordinates'][0];
-            }
-            $affected_population = 0;
-            if (!empty($ring)) {
-                $hh_stmt = $pdo->prepare("
-                    SELECT family_members, latitude, longitude FROM households
-                    WHERE latitude BETWEEN 12.50 AND 13.20 AND longitude BETWEEN 120.50 AND 121.20
-                      AND barangay_id = ?
-                ");
-                $hh_stmt->execute([$barangay_id]);
-                foreach ($hh_stmt->fetchAll(PDO::FETCH_ASSOC) as $hh) {
-                    if (point_in_polygon((float)$hh['latitude'], (float)$hh['longitude'], $ring)) {
-                        $affected_population += (int)$hh['family_members'];
-                    }
-                }
-            }
+            $affected_population = compute_population_in_polygon($pdo, $polygon_geojson) ?? (int)$_POST['affected_population'];
         } else {
             $affected_population = (int)$_POST['affected_population'];
         }
@@ -137,47 +92,22 @@ if ($_POST) {
                               VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
         $stmt->execute([$hazard_type_id, $barangay_id, $risk_level, $area_km2, $affected_population, $description, $coordinates, $polygon_geojson]);
 
-        $success = "Hazard zone added successfully! Affected population computed: " . number_format($affected_population);
+        $success = "Hazard zone added! Population in danger zone: " . number_format($affected_population);
     }
 
     // Update hazard zone
     if (isset($_POST['update_hazard'])) {
-        $hazard_id = (int)$_POST['hazard_id'];
-        $hazard_type_id = $_POST['hazard_type_id'];
-        $barangay_id = ($_SESSION['role'] == 'barangay_staff') ? $_SESSION['barangay_id'] : (int)$_POST['barangay_id'];
-        $risk_level = $_POST['risk_level'];
-        $area_km2 = $_POST['area_km2'];
-        $description = $_POST['description'];
+        $hazard_id       = $_POST['hazard_id'];
+        $hazard_type_id  = $_POST['hazard_type_id'];
+        $barangay_id     = ($_SESSION['role'] == 'barangay_staff') ? $_SESSION['barangay_id'] : $_POST['barangay_id'];
+        $risk_level      = $_POST['risk_level'];
+        $area_km2        = $_POST['area_km2'];
+        $description     = $_POST['description'];
+        $coordinates     = $_POST['coordinates'];
         $polygon_geojson = $_POST['polygon_geojson'] ?? null;
-        $coordinates = $_POST['coordinates'] ?? '';
 
         if ($polygon_geojson) {
-            $geojson = json_decode($polygon_geojson, true);
-            $ring = [];
-            if ($geojson['type'] === 'FeatureCollection' && !empty($geojson['features'])) {
-                $geo = $geojson['features'][0]['geometry'];
-            } elseif ($geojson['type'] === 'Feature') {
-                $geo = $geojson['geometry'];
-            } else {
-                $geo = $geojson;
-            }
-            if ($geo['type'] === 'Polygon') {
-                $ring = $geo['coordinates'][0];
-            }
-            $affected_population = 0;
-            if (!empty($ring)) {
-                $hh_stmt = $pdo->prepare("
-                    SELECT family_members, latitude, longitude FROM households
-                    WHERE latitude BETWEEN 12.50 AND 13.20 AND longitude BETWEEN 120.50 AND 121.20
-                      AND barangay_id = ?
-                ");
-                $hh_stmt->execute([$barangay_id]);
-                foreach ($hh_stmt->fetchAll(PDO::FETCH_ASSOC) as $hh) {
-                    if (point_in_polygon((float)$hh['latitude'], (float)$hh['longitude'], $ring)) {
-                        $affected_population += (int)$hh['family_members'];
-                    }
-                }
-            }
+            $affected_population = compute_population_in_polygon($pdo, $polygon_geojson) ?? (int)$_POST['affected_population'];
         } else {
             $affected_population = (int)$_POST['affected_population'];
         }
@@ -189,7 +119,7 @@ if ($_POST) {
                               WHERE id = ?");
         $stmt->execute([$hazard_type_id, $barangay_id, $risk_level, $area_km2, $affected_population, $description, $coordinates, $polygon_geojson, $hazard_id]);
 
-        $success = "Hazard zone updated! Affected population: " . number_format($affected_population);
+        $success = "Hazard zone updated! Population in danger zone: " . number_format($affected_population);
     }
 }
 
@@ -643,56 +573,48 @@ if ($_SESSION['role'] == 'barangay_staff') {
                                                     value="<?php echo $edit_hazard ? $edit_hazard['area_km2'] : ''; ?>" required>
                                             </div>
                                         </div>
-                                        <div class="col-md-6" style="display: none">
+                                        <div class="col-md-6">
                                             <div class="mb-3">
-                                                <label class="form-label">Affected Population</label>
-                                                <input type="number" name="affected_population" class="form-control" 
-                                                    value="<?php echo $edit_hazard ? $edit_hazard['affected_population'] : ''; ?>">
+                                                <label class="form-label">Estimated Affected Population</label>
+                                                <input type="number" name="affected_population" class="form-control"
+                                                    value="<?php echo $edit_hazard ? $edit_hazard['affected_population'] : ''; ?>"
+                                                    placeholder="Risk assessment estimate">
+                                                <small class="text-muted">Manual estimate based on risk assessment. Actual affected population from real events is computed in Incident Reports.</small>
                                             </div>
                                         </div>
                                     </div>
 
-                                    <!-- Phase 4: Polygon drawing for hazard zone -->
+                                    <!-- Hazard zone boundary polygon — draw to auto-compute population in danger zone -->
                                     <div class="mb-3">
                                         <label class="form-label fw-bold">
                                             <i class="fas fa-draw-polygon text-primary me-1"></i>
-                                            Affected Area Polygon
+                                            Danger Zone Polygon
                                         </label>
                                         <div class="alert alert-info py-2 small mb-2">
                                             <i class="fas fa-info-circle me-1"></i>
-                                            Draw a polygon on the map below to mark the hazard zone. The system will automatically count all households inside the polygon and compute the affected population.
+                                            Draw the polygon boundary of this hazard zone. The system will automatically count all households whose GPS coordinates fall inside and compute the <strong>total population living in the danger zone</strong>.
+                                            This is a risk assessment figure — for actual disaster events, use <a href="incident_reports.php" class="alert-link">Incident Reports</a>.
                                         </div>
-                                        <div id="hazardMapPicker" style="height:250px; border:2px solid #dee2e6; border-radius:6px;"></div>
-                                        <small class="text-muted">Use the polygon tool (<i class="fas fa-draw-polygon"></i>) in the map toolbar. Draw, then click Save.</small>
+                                        <div id="hazardMapPicker" style="height:260px; border:2px solid #dee2e6; border-radius:6px;"></div>
+                                        <small class="text-muted">Use the polygon tool in the toolbar. Draw, then the population count updates automatically.</small>
 
-                                        <!-- Hidden fields -->
+                                        <!-- Live computation preview -->
+                                        <div id="hazardPopResult" class="mt-2" style="display:none;">
+                                            <div class="card border-primary">
+                                                <div class="card-body py-2 small">
+                                                    <i class="fas fa-users text-primary me-1"></i>
+                                                    <strong>Households in zone:</strong> <span id="hzHH">0</span> &nbsp;|&nbsp;
+                                                    <strong>Total population in danger zone:</strong> <span id="hzPop">0</span>
+                                                    <small class="text-muted d-block">Will be saved as Estimated Affected Population.</small>
+                                                </div>
+                                            </div>
+                                        </div>
+
                                         <input type="hidden" name="polygon_geojson" id="polygonGeoJSON"
                                             value="<?php echo $edit_hazard ? htmlspecialchars($edit_hazard['polygon_geojson'] ?? '') : ''; ?>">
                                         <input type="hidden" name="coordinates" id="hazardCoordinates"
                                             value="<?php echo $edit_hazard ? htmlspecialchars($edit_hazard['coordinates']) : ''; ?>">
-                                        <input type="hidden" name="affected_population" id="autoAffectedPop"
-                                            value="<?php echo $edit_hazard ? $edit_hazard['affected_population'] : '0'; ?>">
-
-                                        <!-- Live preview of computation -->
-                                        <div id="polygonComputeResult" class="mt-2" style="display:none;">
-                                            <div class="card border-success">
-                                                <div class="card-body py-2 small">
-                                                    <strong class="text-success">Auto-computed from polygon:</strong><br>
-                                                    Households inside: <strong id="pcHH">0</strong> &nbsp;|&nbsp;
-                                                    Population: <strong id="pcPop">0</strong> &nbsp;|&nbsp;
-                                                    PWD: <strong id="pcPwd">0</strong> &nbsp;|&nbsp;
-                                                    Seniors: <strong id="pcSeniors">0</strong>
-                                                </div>
-                                            </div>
-                                        </div>
                                     </div>
-
-                                    <?php if ($_SESSION['role'] === 'admin'): ?>
-                                    <div class="alert alert-secondary small py-2 mb-3">
-                                        <i class="fas fa-code me-1"></i>
-                                        <strong>DEVELOPER NOTE:</strong> This system currently supports manual polygon drawing for affected area mapping. This can be upgraded in a future version to support real-time GPS-based incident tracking, where the affected polygon is automatically generated from live field reports. The household GPS infrastructure is already in place to support this upgrade.
-                                    </div>
-                                    <?php endif; ?>
 
                                     <div class="mb-3">
                                         <label class="form-label">Description</label>
@@ -2526,41 +2448,30 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch(e) {}
     }
 
-    function computePopulation(geojsonStr, barangay_id) {
+    function computeHazardPopulation(geojsonStr) {
         const formData = new FormData();
-        formData.append('action', 'compute_polygon_population');
+        formData.append('action', 'compute_hazard_population');
         formData.append('polygon_geojson', geojsonStr);
-        formData.append('barangay_id', barangay_id || 0);
-
         fetch('hazard_data.php', {method:'POST', body: formData})
             .then(r => r.json())
             .then(function(res) {
                 if (res.success) {
-                    document.getElementById('autoAffectedPop').value = res.affected_population;
-                    document.getElementById('pcHH').textContent     = res.affected_households;
-                    document.getElementById('pcPop').textContent     = res.affected_population;
-                    document.getElementById('pcPwd').textContent     = res.affected_pwd;
-                    document.getElementById('pcSeniors').textContent = res.affected_seniors;
-                    document.getElementById('polygonComputeResult').style.display = 'block';
+                    document.getElementById('hzHH').textContent  = res.total_households.toLocaleString();
+                    document.getElementById('hzPop').textContent = res.total_population.toLocaleString();
+                    document.getElementById('hazardPopResult').style.display = 'block';
                 }
             });
     }
 
     function onLayerChange() {
         if (drawnItems.getLayers().length === 0) return;
-
         const geojsonData = drawnItems.toGeoJSON();
         const geojsonStr  = JSON.stringify(geojsonData);
         polyInput.value   = geojsonStr;
-
-        // Get centroid of first polygon for coordinates field
         const firstLayer = drawnItems.getLayers()[0];
         const center = firstLayer.getBounds().getCenter();
         if (coordsInput) coordsInput.value = center.lat.toFixed(6) + ',' + center.lng.toFixed(6);
-
-        // Auto-compute population
-        const brgy_id = barangaySelect ? barangaySelect.value : 0;
-        computePopulation(geojsonStr, brgy_id);
+        computeHazardPopulation(geojsonStr);
     }
 
     hazardMap.on(L.Draw.Event.CREATED, function(e) {
@@ -2572,16 +2483,12 @@ document.addEventListener('DOMContentLoaded', function() {
     hazardMap.on(L.Draw.Event.EDITED, function() { onLayerChange(); });
     hazardMap.on(L.Draw.Event.DELETED, function() {
         polyInput.value = '';
-        document.getElementById('polygonComputeResult').style.display = 'none';
+        document.getElementById('hazardPopResult').style.display = 'none';
     });
 
-    // When barangay changes, re-compute
+    // Zoom map to selected barangay
     if (barangaySelect) {
         barangaySelect.addEventListener('change', function() {
-            if (polyInput.value.trim()) {
-                computePopulation(polyInput.value, this.value);
-            }
-            // Also zoom map to barangay center
             const barangayData = <?php echo json_encode(array_combine(
                 array_column($barangays, 'id'),
                 array_map(function($b) { return $b['coordinates']; }, $barangays)

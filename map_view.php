@@ -59,6 +59,22 @@ try {
     $evacCenters = [];
 }
 
+// Get active/ongoing incident reports for map layer
+try {
+    $incidentPolygons = $pdo->query("
+        SELECT ir.id, ir.title, ir.incident_date, ir.status,
+               ir.polygon_geojson, ir.total_affected_population,
+               ht.name as hazard_type_name, ht.color as hazard_color
+        FROM incident_reports ir
+        LEFT JOIN hazard_types ht ON ir.hazard_type_id = ht.id
+        WHERE ir.polygon_geojson IS NOT NULL
+          AND ir.status IN ('ongoing', 'monitoring')
+        ORDER BY ir.incident_date DESC
+    ")->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    $incidentPolygons = [];
+}
+
 // Get all hazard zones with details
 $hazardZones = $pdo->query("
     SELECT 
@@ -641,11 +657,33 @@ while ($row = $riskStatsStmt->fetch(PDO::FETCH_ASSOC)) {
             evacLayer.addTo(map);
 
             // ── Phase 5 Layer Control (top right) ──
+            // ── Layer 6: Incident polygons (ongoing/monitoring — on by default) ──
+            const incidentData = <?php echo json_encode($incidentPolygons); ?>;
+            const incidentLayer = L.layerGroup();
+            incidentData.forEach(function(inc) {
+                if (!inc.polygon_geojson) return;
+                try {
+                    const gj = JSON.parse(inc.polygon_geojson);
+                    L.geoJSON(gj, {
+                        style: { color: '#dc3545', weight: 3, fillOpacity: 0.25, dashArray: '6,4' }
+                    }).bindPopup(
+                        '<strong class="text-danger">' + inc.title + '</strong><br>' +
+                        'Type: ' + (inc.hazard_type_name || 'N/A') + '<br>' +
+                        'Date: ' + inc.incident_date + '<br>' +
+                        'Status: <span class="badge bg-danger">' + inc.status + '</span><br>' +
+                        'Affected: ' + parseInt(inc.total_affected_population).toLocaleString() + ' persons<br>' +
+                        '<a href="incident_reports.php?view_id=' + inc.id + '">View Details</a>'
+                    ).addTo(incidentLayer);
+                } catch(e) {}
+            });
+            incidentLayer.addTo(map);
+
             const overlays = {
                 'Barangay Boundaries': boundaryLayer,
                 'Household Locations': householdLayer,
                 'Population Heatmap': heatmapLayer,
                 'Hazard Zone Polygons': hazardPolygonLayer,
+                'Active Incidents': incidentLayer,
                 'Evacuation Centers': evacLayer
             };
             layerControl = L.control.layers(baseLayers, overlays, { position: 'topright', collapsed: false }).addTo(map);

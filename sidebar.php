@@ -65,6 +65,11 @@ $currentPage = basename($_SERVER['PHP_SELF']);
         </a>
       </li>
       <li class="nav-item mb-1">
+        <a class="nav-link text-white d-flex align-items-center px-3 py-2 rounded hover-bg <?php echo ($currentPage == 'incident_reports.php' || $currentPage == 'incident_list.php') ? 'active' : ''; ?>" href="incident_reports.php">
+          <i class="fas fa-file-medical-alt me-2"></i> Incident Reports
+        </a>
+      </li>
+      <li class="nav-item mb-1">
         <a class="nav-link text-white d-flex align-items-center px-3 py-2 rounded hover-bg <?php echo ($currentPage == 'population_data.php') ? 'active' : ''; ?>" href="population_data.php">
           <i class="fas fa-users me-2"></i> Population Data
         </a>
@@ -140,6 +145,11 @@ $currentPage = basename($_SERVER['PHP_SELF']);
       <li class="nav-item mb-1">
         <a class="nav-link text-white d-flex align-items-center px-3 py-2 rounded hover-bg <?php echo ($currentPage == 'users.php') ? 'active' : ''; ?>" href="users.php">
           <i class="fas fa-cog me-2"></i> User Management
+        </a>
+      </li>
+      <li class="nav-item mb-1">
+        <a class="nav-link text-white d-flex align-items-center px-3 py-2 rounded hover-bg <?php echo ($currentPage == 'incident_reports.php' || $currentPage == 'incident_list.php') ? 'active' : ''; ?>" href="incident_reports.php">
+          <i class="fas fa-file-medical-alt me-2"></i> Incident Reports
         </a>
       </li>
       <li class="nav-item mb-1">
