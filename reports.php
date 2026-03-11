@@ -282,85 +282,149 @@ function getReportTitle($report_type) {
 
 
                 <div class="row">
-                    <div class="col-md-4">
-                        <div class="card">
-                            <div class="card-header">
-                                <h5 class="card-title mb-0">Generate Report</h5>
-                            </div>
-                            <div class="card-body">
-                                <form method="POST" id="reportForm">
-                                    <div class="mb-3">
-                                        <label class="form-label">Report Type</label>
-                                        <select name="report_type" class="form-select" required>
-                                            <option value="risk_assessment">Risk Assessment Report</option>
-                                            <option value="hazard_analysis">Hazard Analysis Report</option>
-                                            <option value="population_risk">Population Risk Report</option>
-                                        </select>
-                                    </div>
-                                    
-                                    <div class="mb-3">
-                                        <label class="form-label">Barangay Filter</label>
-                                        <select name="barangay_filter" class="form-select">
-                                            <option value="">All Barangays</option>
-                                            <?php foreach ($barangays as $barangay): ?>
-                                                <option value="<?php echo $barangay['id']; ?>"><?php echo $barangay['name']; ?></option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                    </div>
-                                    
-                                    <div class="row">
-                                        <div class="col-md-6">
-                                            <div class="mb-3">
-                                                <label class="form-label">Date From</label>
-                                                <input type="date" name="date_from" class="form-control">
-                                            </div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <div class="mb-3">
-                                                <label class="form-label">Date To</label>
-                                                <input type="date" name="date_to" class="form-control">
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="d-grid gap-2">
-                                        <button type="submit" name="generate_report" class="btn btn-primary">
-                                            <i class="fas fa-chart-bar me-2"></i>Generate Report
-                                        </button>
-                                        <div class="btn-group">
-                                            <button type="submit" name="export_pdf" class="btn btn-danger btn-export">
-                                                <i class="fas fa-file-pdf me-2"></i>Export PDF
-                                            </button>
-                                            <button type="submit" name="export_excel" class="btn btn-success btn-export">
-                                                <i class="fas fa-file-excel me-2"></i>Export Excel
-                                            </button>
-                                        </div>
-                                    </div>
-                                </form>
-                            </div>
+                    <div class="col-md-12">
+    <div class="card">
+        <div class="card-header">
+            <h5 class="card-title mb-0">
+                <i class="fas fa-cog me-2"></i>Generate Report
+            </h5>
+        </div>
+        <div class="card-body">
+            <form method="POST" id="reportForm">
+                <div class="row align-items-end">
+                    <!-- Report Type -->
+                    <div class="col-md-3">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">
+                                <i class="fas fa-chart-pie me-2 text-primary"></i>Report Type
+                            </label>
+                            <select name="report_type" class="form-select" required>
+                                <option value="risk_assessment">Risk Assessment Report</option>
+                                <option value="hazard_analysis">Hazard Analysis Report</option>
+                                <option value="population_risk">Population Risk Report</option>
+                            </select>
                         </div>
-                        
-                        <div class="card">
-                            <div class="card-header">
-                                <h5 class="card-title mb-0">Quick Reports</h5>
-                            </div>
-                            <div class="card-body">
-                                <div class="d-grid gap-2">
-                                    <button class="btn btn-outline-primary quick-report" data-report="risk_assessment">
-                                        <i class="fas fa-exclamation-triangle me-2"></i>Quick Risk Report
+                    </div>
+                    
+                    <!-- Barangay Filter -->
+                    <div class="col-md-3">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">
+                                <i class="fas fa-map-marker-alt me-2 text-success"></i>Barangay
+                            </label>
+                            <select name="barangay_filter" class="form-select">
+                                <option value="">All Barangays</option>
+                                <?php foreach ($barangays as $barangay): ?>
+                                    <option value="<?php echo $barangay['id']; ?>">
+                                        <?php echo htmlspecialchars($barangay['name']); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- Date From -->
+                    <div class="col-md-2">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">
+                                <i class="fas fa-calendar-alt me-2 text-info"></i>From
+                            </label>
+                            <input type="date" name="date_from" class="form-control">
+                        </div>
+                    </div>
+                    
+                    <!-- Date To -->
+                    <div class="col-md-2">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">
+                                <i class="fas fa-calendar-check me-2 text-info"></i>To
+                            </label>
+                            <input type="date" name="date_to" class="form-control">
+                        </div>
+                    </div>
+                    
+                    <!-- Action Buttons -->
+                    <div class="col-md-2">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold text-white">_</label>
+                            <div class="d-flex gap-2">
+                                <button type="submit" name="generate_report" class="btn btn-primary flex-grow-1" 
+                                        data-bs-toggle="tooltip" title="Generate Report">
+                                    <i class="fas fa-chart-bar"></i>
+                                </button>
+                                <div class="btn-group" role="group">
+                                    <button type="submit" name="export_pdf" class="btn btn-danger" 
+                                            data-bs-toggle="tooltip" title="Export as PDF">
+                                        <i class="fas fa-file-pdf"></i>
                                     </button>
-                                    <button class="btn btn-outline-warning quick-report" data-report="hazard_analysis">
-                                        <i class="fas fa-layer-group me-2"></i>Quick Hazard Report
-                                    </button>
-                                    <button class="btn btn-outline-info quick-report" data-report="population_risk">
-                                        <i class="fas fa-users me-2"></i>Quick Population Report
+                                    <button type="submit" name="export_excel" class="btn btn-success" 
+                                            data-bs-toggle="tooltip" title="Export as Excel">
+                                        <i class="fas fa-file-excel"></i>
                                     </button>
                                 </div>
                             </div>
                         </div>
                     </div>
+                </div>
+                
+                <!-- Advanced Filters Toggle (Optional) -->
+                <div class="row mt-2">
+                    <div class="col-12">
+                        <div class="text-center">
+                            <a href="#" class="text-decoration-none small" data-bs-toggle="collapse" data-bs-target="#advancedFilters">
+                                <i class="fas fa-filter me-1"></i>Advanced Filters
+                                <i class="fas fa-chevron-down ms-1"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Advanced Filters Section (Collapsible) -->
+                <div class="collapse mt-3" id="advancedFilters">
+                    <div class="card card-body bg-light">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold">Risk Level</label>
+                                    <select class="form-select">
+                                        <option value="">All Risk Levels</option>
+                                        <option value="high">High Risk</option>
+                                        <option value="medium">Medium Risk</option>
+                                        <option value="low">Low Risk</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold">Hazard Type</label>
+                                    <select class="form-select">
+                                        <option value="">All Hazard Types</option>
+                                        <option value="flood">Flood</option>
+                                        <option value="landslide">Landslide</option>
+                                        <option value="storm">Storm Surge</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold">Sort By</label>
+                                    <select class="form-select">
+                                        <option value="date">Date</option>
+                                        <option value="risk">Risk Level</option>
+                                        <option value="population">Population</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
                     
-                    <div class="col-md-8">
+                    
+                    <div class="col-md-9">
                         <div class="card">
                             <div class="card-header d-flex justify-content-between align-items-center">
                                 <h5 class="card-title mb-0">
@@ -474,6 +538,30 @@ function getReportTitle($report_type) {
                         </div>
                         <?php endif; ?>
                     </div>
+
+                    <div class="col-md-3">
+                        
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">Quick Reports</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="d-grid gap-2">
+                                    <button class="btn btn-outline-primary quick-report" data-report="risk_assessment">
+                                        <i class="fas fa-exclamation-triangle me-2"></i>Quick Risk Report
+                                    </button>
+                                    <button class="btn btn-outline-warning quick-report" data-report="hazard_analysis">
+                                        <i class="fas fa-layer-group me-2"></i>Quick Hazard Report
+                                    </button>
+                                    <button class="btn btn-outline-info quick-report" data-report="population_risk">
+                                        <i class="fas fa-users me-2"></i>Quick Population Report
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+
                 </div>
             </main>
         </div>

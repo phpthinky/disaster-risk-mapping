@@ -19,7 +19,7 @@ function writeln(string $color, string $prefix, string $message): void {
 
 function parseArgs(array $argv): array {
     $args = [
-        'host' => '127.0.0.1',
+        'host' => '127.0.0.2',
         'port' => '8000',
         'path' => getcwd(),
     ];

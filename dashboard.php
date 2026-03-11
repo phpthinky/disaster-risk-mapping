@@ -242,8 +242,8 @@ $announcements = $stmt->fetchAll();
         
         .main-content {
             padding: 20px;
-            height: calc(100vh - 56px);
-            overflow-y: auto;
+           // height: calc(100vh - 56px);
+            //overflow-y: auto;
         }
         
         /* Announcement Card Enhancements */
