@@ -64,8 +64,14 @@ if (isset($_GET['export_archive'])) {
     exit();
 }
 
-// Handle form submission - UPDATED
+// GOLDEN RULE: Population data is now auto-computed from households.
+// Manual population entry is disabled. All forms redirect to computed view.
+// Redirect manual submissions to household management
 if ($_POST && isset($_POST['submit_population'])) {
+    header('Location: population_data.php?notice=computed');
+    exit;
+}
+if (false && isset($_POST['submit_population_DISABLED'])) {
     $barangay_id = $_POST['barangay_id'];
     $total_population = $_POST['total_population'];
     $households = $_POST['households'];
@@ -146,8 +152,12 @@ if (isset($_GET['delete_id'])) {
     exit();
 }
 
-// Handle edit form submission - UPDATED
+// Manual edit disabled — population is auto-computed
 if ($_POST && isset($_POST['update_population'])) {
+    header('Location: population_data.php?notice=computed');
+    exit;
+}
+if (false && isset($_POST['update_population_DISABLED'])) {
     $id = $_POST['edit_id'];
     $barangay_id = $_POST['barangay_id'];
     $total_population = $_POST['total_population'];

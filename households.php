@@ -1,6 +1,12 @@
 <?php
-// households.php
+// households.php — Legacy redirect to new household_management.php
 session_start();
+
+// Redirect to new household management page
+header('Location: household_management.php');
+exit;
+
+// Legacy code below kept for reference
 require_once 'config.php';
 require_once 'sync_functions.php';
 
