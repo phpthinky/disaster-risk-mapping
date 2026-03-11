@@ -758,4 +758,4 @@ point-in-polygon computation built in this version are the
 exact foundation needed for all future upgrades listed above.
 
 
-[Note: You can redesign the UI for more manageable style. Because this old design is to compressed with to many data card and table showing in one page that can be change into modal style or hidden tab style, You can change CRUD as JQUERY with notify js to prevent all page submit]
+[Note: If you think it need to restart from scratch is the better way to do to have a better implementation. Tell me why and start coding when i said Go if our thoughts aligned].
