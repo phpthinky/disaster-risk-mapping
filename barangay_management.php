@@ -163,6 +163,7 @@ if (isset($_GET['ajax'])) {
                                     <th>Assigned Staff</th>
                                     <th class="text-center">Households</th>
                                     <th class="text-center">Population</th>
+                                    <th class="text-center">Area (km&sup2;)</th>
                                     <th class="text-center">Boundary</th>
                                     <th class="text-center">Actions</th>
                                 </tr>
@@ -192,8 +193,13 @@ if (isset($_GET['ajax'])) {
             <input type="text" class="form-control" name="name" id="brgyName" required>
           </div>
           <div class="mb-3">
-            <label class="form-label">Area (km&sup2;)</label>
+            <label class="form-label">Area (km&sup2;) <span class="text-muted small">— Official / Manual</span></label>
             <input type="number" step="0.01" class="form-control" name="area_km2" id="brgyArea">
+          </div>
+          <div class="mb-3" id="calcAreaField" style="display:none">
+            <label class="form-label">Calculated Map Area (km&sup2;) <span class="badge bg-info">Auto</span></label>
+            <input type="text" class="form-control bg-light" id="brgyCalcArea" readonly>
+            <div class="form-text">Auto-calculated from the drawn boundary polygon.</div>
           </div>
           <div class="mb-3">
             <label class="form-label">Center Coordinates (lat, lng)</label>
@@ -318,17 +324,21 @@ function renderTable(filter){
     let html = '';
     let filtered = filter ? allData.filter(b => b.name.toLowerCase().includes(filter)) : allData;
     if (filtered.length === 0) {
-        html = '<tr><td colspan="6" class="text-center text-muted py-4">No barangays found.</td></tr>';
+        html = '<tr><td colspan="7" class="text-center text-muted py-4">No barangays found.</td></tr>';
     }
     filtered.forEach(b => {
         let boundary = b.boundary_geojson
             ? '<span class="boundary-yes"><i class="fas fa-check-circle"></i> Drawn</span>'
             : '<span class="boundary-no"><i class="fas fa-exclamation-circle"></i> Not yet</span>';
+        let manualArea = b.area_km2 ? parseFloat(b.area_km2).toFixed(2) : '--';
+        let calcArea = b.calculated_area_km2 ? parseFloat(b.calculated_area_km2).toFixed(2) : '--';
+        let areaDisplay = `<span title="Manual / Official">${manualArea}</span> <span class="text-muted">/</span> <span class="text-primary" title="Calculated from map">${calcArea}</span>`;
         html += `<tr>
             <td class="fw-semibold">${esc(b.name)}</td>
             <td>${b.staff_username ? esc(b.staff_username) : '<span class="text-muted">Unassigned</span>'}</td>
             <td class="text-center">${parseInt(b.household_count)||0}</td>
             <td class="text-center">${(parseInt(b.population)||0).toLocaleString()}</td>
+            <td class="text-center" style="font-size:.85rem">${areaDisplay}</td>
             <td class="text-center">${boundary}</td>
             <td class="text-center">
                 <button class="btn btn-sm btn-outline-primary me-1" onclick="openEditModal(${b.id})" title="Edit"><i class="fas fa-edit"></i></button>
@@ -345,6 +355,7 @@ function openAddModal(){
     $('#brgyForm')[0].reset();
     $('#brgyId').val('');
     $('#computedStats').addClass('d-none');
+    $('#calcAreaField').hide();
     brgyModal.show();
 }
 
@@ -355,6 +366,12 @@ function openEditModal(id){
         $('#brgyId').val(b.id);
         $('#brgyName').val(b.name);
         $('#brgyArea').val(b.area_km2);
+        if (b.calculated_area_km2) {
+            $('#brgyCalcArea').val(parseFloat(b.calculated_area_km2).toFixed(4));
+            $('#calcAreaField').show();
+        } else {
+            $('#calcAreaField').hide();
+        }
         $('#brgyCoords').val(b.coordinates);
         $('#brgyStaff').val(b.staff_user_id || '');
         // Show computed stats
