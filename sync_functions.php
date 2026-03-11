@@ -10,6 +10,122 @@
  */
 
 /**
+ * Recompute household family composition counts from household_members.
+ * Called after every member add/edit/delete.
+ *
+ * Updates: family_members, pwd_count, pregnant_count, senior_count,
+ *          infant_count, minor_count, child_count, adolescent_count,
+ *          young_adult_count, adult_count, middle_aged_count
+ *
+ * Age-based classification:
+ *   Infant: 0-2, Minor: 3-12, Child: 3-5, Adolescent: 13-17,
+ *   Young Adult: 18-24, Adult: 25-44, Middle Aged: 45-59, Senior: 60+
+ *
+ * @return int The barangay_id of the household (for chaining to handle_sync)
+ */
+function recompute_household_composition(PDO $pdo, int $household_id): int
+{
+    // Count the household head as 1 member
+    $headRow = $pdo->prepare("SELECT barangay_id, age FROM households WHERE id = ?");
+    $headRow->execute([$household_id]);
+    $head = $headRow->fetch(PDO::FETCH_ASSOC);
+    if (!$head) return 0;
+
+    // Get all members
+    $stmt = $pdo->prepare("SELECT * FROM household_members WHERE household_id = ?");
+    $stmt->execute([$household_id]);
+    $members = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Total family members = household head + all members
+    $family_members = 1 + count($members);
+
+    // Initialize counters
+    $pwd_count = 0;
+    $pregnant_count = 0;
+    $senior_count = 0;   // 60+
+    $infant_count = 0;   // 0-2
+    $minor_count = 0;    // 3-12
+    $child_count = 0;    // 3-5
+    $adolescent_count = 0; // 13-17
+    $young_adult_count = 0; // 18-24
+    $adult_count = 0;    // 25-44
+    $middle_aged_count = 0; // 45-59
+
+    foreach ($members as $m) {
+        $age = (int)$m['age'];
+
+        // Category flags
+        if ($m['is_pwd'] == 1) $pwd_count++;
+        if ($m['is_pregnant'] == 1) $pregnant_count++;
+
+        // Age-based classification
+        if ($age <= 2) {
+            $infant_count++;
+        } elseif ($age <= 5) {
+            $child_count++;
+            $minor_count++;
+        } elseif ($age <= 12) {
+            $minor_count++;
+        } elseif ($age <= 17) {
+            $adolescent_count++;
+        } elseif ($age <= 24) {
+            $young_adult_count++;
+        } elseif ($age <= 44) {
+            $adult_count++;
+        } elseif ($age <= 59) {
+            $middle_aged_count++;
+        } else {
+            $senior_count++;
+        }
+    }
+
+    // Also classify the household head by age
+    $headAge = (int)$head['age'];
+    if ($headAge <= 2) $infant_count++;
+    elseif ($headAge <= 5) { $child_count++; $minor_count++; }
+    elseif ($headAge <= 12) $minor_count++;
+    elseif ($headAge <= 17) $adolescent_count++;
+    elseif ($headAge <= 24) $young_adult_count++;
+    elseif ($headAge <= 44) $adult_count++;
+    elseif ($headAge <= 59) $middle_aged_count++;
+    else $senior_count++;
+
+    // Update household record
+    $update = $pdo->prepare("
+        UPDATE households SET
+            family_members = ?,
+            pwd_count = ?,
+            pregnant_count = ?,
+            senior_count = ?,
+            infant_count = ?,
+            minor_count = ?,
+            child_count = ?,
+            adolescent_count = ?,
+            young_adult_count = ?,
+            adult_count = ?,
+            middle_aged_count = ?,
+            updated_at = NOW()
+        WHERE id = ?
+    ");
+    $update->execute([
+        $family_members,
+        $pwd_count,
+        $pregnant_count,
+        $senior_count,
+        $infant_count,
+        $minor_count,
+        $child_count,
+        $adolescent_count,
+        $young_adult_count,
+        $adult_count,
+        $middle_aged_count,
+        $household_id
+    ]);
+
+    return (int)$head['barangay_id'];
+}
+
+/**
  * Recompute barangay aggregate counts from households.
  */
 function sync_barangay(PDO $pdo, int $barangay_id): void

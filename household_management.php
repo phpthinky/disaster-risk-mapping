@@ -157,6 +157,8 @@ if (isset($_GET['ajax'])) {
                 }
             }
             $pdo->commit();
+            // Recompute composition from members, then sync barangay
+            recompute_household_composition($pdo, (int)$id);
             handle_sync($pdo, (int)$barangay_id);
             echo json_encode(['ok' => true, 'msg' => 'Household saved successfully.']);
         } catch (Exception $e) {
@@ -225,10 +227,6 @@ if (isset($_GET['ajax'])) {
     if ($_GET['ajax'] === 'save_member' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $hid = (int)$_POST['household_id'];
         $mid = $_POST['member_id'] ?? null;
-        // Get barangay for sync
-        $bid = $pdo->prepare("SELECT barangay_id FROM households WHERE id = ?");
-        $bid->execute([$hid]);
-        $barangay_id = $bid->fetchColumn();
 
         if ($mid) {
             $pdo->prepare("UPDATE household_members SET full_name=?, age=?, gender=?, relationship=?, is_pwd=?, is_pregnant=?, is_senior=?, is_infant=?, is_minor=? WHERE id=?")
@@ -239,8 +237,14 @@ if (isset($_GET['ajax'])) {
                 ->execute([$hid, $_POST['full_name'], (int)$_POST['age'], $_POST['gender'], $_POST['relationship'],
                     $_POST['is_pwd']?1:0, $_POST['is_pregnant']?1:0, $_POST['is_senior']?1:0, $_POST['is_infant']?1:0, $_POST['is_minor']?1:0]);
         }
-        if ($barangay_id) handle_sync($pdo, (int)$barangay_id);
-        echo json_encode(['ok' => true]);
+        // Recompute household composition from members, then sync barangay
+        $barangay_id = recompute_household_composition($pdo, $hid);
+        if ($barangay_id) handle_sync($pdo, $barangay_id);
+
+        // Return updated composition for UI refresh
+        $comp = $pdo->prepare("SELECT family_members, pwd_count, pregnant_count, senior_count, infant_count, minor_count, child_count, adolescent_count, young_adult_count, adult_count, middle_aged_count FROM households WHERE id = ?");
+        $comp->execute([$hid]);
+        echo json_encode(['ok' => true, 'composition' => $comp->fetch(PDO::FETCH_ASSOC)]);
         exit;
     }
 
@@ -251,8 +255,17 @@ if (isset($_GET['ajax'])) {
         $m->execute([$mid]);
         $row = $m->fetch(PDO::FETCH_ASSOC);
         $pdo->prepare("DELETE FROM household_members WHERE id = ?")->execute([$mid]);
-        if ($row) handle_sync($pdo, (int)$row['barangay_id']);
-        echo json_encode(['ok' => true]);
+        if ($row) {
+            // Recompute household composition from remaining members, then sync barangay
+            recompute_household_composition($pdo, (int)$row['household_id']);
+            handle_sync($pdo, (int)$row['barangay_id']);
+            // Return updated composition for UI refresh
+            $comp = $pdo->prepare("SELECT family_members, pwd_count, pregnant_count, senior_count, infant_count, minor_count, child_count, adolescent_count, young_adult_count, adult_count, middle_aged_count FROM households WHERE id = ?");
+            $comp->execute([$row['household_id']]);
+            echo json_encode(['ok' => true, 'composition' => $comp->fetch(PDO::FETCH_ASSOC)]);
+        } else {
+            echo json_encode(['ok' => true]);
+        }
         exit;
     }
 
@@ -385,21 +398,96 @@ if ($role === 'admin') {
                             <div class="col-md-3"><label class="form-label">Preparedness Kit</label><select class="form-select" name="preparedness_kit" id="fKit"><option value="No">No</option><option value="Yes">Yes</option></select></div>
                         </div>
 
-                        <!-- Section 2: Family Composition -->
-                        <h6 class="text-primary border-bottom pb-2 mb-3"><i class="fas fa-users me-1"></i> Family Composition</h6>
-                        <div class="row g-3 mb-3">
-                            <div class="col-md-3"><label class="form-label">Family Members</label><input type="number" class="form-control" name="family_members" id="fMembers" min="1" value="1"></div>
-                            <div class="col-md-3"><label class="form-label"><i class="fas fa-wheelchair vuln-icon text-primary"></i> PWD Count</label><input type="number" class="form-control" name="pwd_count" id="fPwd" min="0" value="0"></div>
-                            <div class="col-md-3"><label class="form-label"><i class="fas fa-person-pregnant vuln-icon text-danger"></i> Pregnant</label><input type="number" class="form-control" name="pregnant_count" id="fPregnant" min="0" value="0"></div>
-                            <div class="col-md-3"><label class="form-label"><i class="fas fa-person-cane vuln-icon text-warning"></i> Senior (60+)</label><input type="number" class="form-control" name="senior_count" id="fSenior" min="0" value="0"></div>
-                            <div class="col-md-3"><label class="form-label"><i class="fas fa-baby vuln-icon text-info"></i> Infant (0-2)</label><input type="number" class="form-control" name="infant_count" id="fInfant" min="0" value="0"></div>
-                            <div class="col-md-3"><label class="form-label">Minor Count</label><input type="number" class="form-control" name="minor_count" id="fMinor" min="0" value="0"></div>
-                            <div class="col-md-3"><label class="form-label">Child Count</label><input type="number" class="form-control" name="child_count" id="fChild" min="0" value="0"></div>
-                            <div class="col-md-3"><label class="form-label">Adolescent</label><input type="number" class="form-control" name="adolescent_count" id="fAdol" min="0" value="0"></div>
-                            <div class="col-md-3"><label class="form-label">Young Adult</label><input type="number" class="form-control" name="young_adult_count" id="fYoung" min="0" value="0"></div>
-                            <div class="col-md-3"><label class="form-label">Adult</label><input type="number" class="form-control" name="adult_count" id="fAdult" min="0" value="0"></div>
-                            <div class="col-md-3"><label class="form-label">Middle Aged</label><input type="number" class="form-control" name="middle_aged_count" id="fMiddle" min="0" value="0"></div>
+                        <!-- Section 2: Family Composition (AUTO-GENERATED — read-only) -->
+                        <h6 class="text-primary border-bottom pb-2 mb-3">
+                            <i class="fas fa-users me-1"></i> Family Composition
+                            <span class="badge bg-info ms-2">Auto-computed from members</span>
+                        </h6>
+                        <div class="alert alert-light border py-2 small mb-3">
+                            <i class="fas fa-info-circle text-info me-1"></i>
+                            These fields are <strong>automatically calculated</strong> from household members. They cannot be edited manually.
+                            Add or edit members in the <strong>Members</strong> tab to update these counts.
                         </div>
+                        <div class="row g-2 mb-3" id="compositionPanel">
+                            <div class="col-6 col-md-3">
+                                <div class="bg-light rounded p-2 text-center">
+                                    <div class="small text-muted"><i class="fas fa-users me-1"></i>Total Members</div>
+                                    <div class="fs-5 fw-bold" id="compTotal">1</div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="bg-light rounded p-2 text-center">
+                                    <div class="small text-muted"><i class="fas fa-wheelchair vuln-icon text-primary"></i> PWD</div>
+                                    <div class="fs-5 fw-bold" id="compPwd">0</div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="bg-light rounded p-2 text-center">
+                                    <div class="small text-muted"><i class="fas fa-person-pregnant vuln-icon text-danger"></i> Pregnant</div>
+                                    <div class="fs-5 fw-bold" id="compPregnant">0</div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="bg-light rounded p-2 text-center">
+                                    <div class="small text-muted"><i class="fas fa-person-cane vuln-icon text-warning"></i> Senior (60+)</div>
+                                    <div class="fs-5 fw-bold" id="compSenior">0</div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="bg-light rounded p-2 text-center">
+                                    <div class="small text-muted"><i class="fas fa-baby vuln-icon text-info"></i> Infant (0-2)</div>
+                                    <div class="fs-5 fw-bold" id="compInfant">0</div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="bg-light rounded p-2 text-center">
+                                    <div class="small text-muted">Minor (3-12)</div>
+                                    <div class="fs-5 fw-bold" id="compMinor">0</div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="bg-light rounded p-2 text-center">
+                                    <div class="small text-muted">Child (3-5)</div>
+                                    <div class="fs-5 fw-bold" id="compChild">0</div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="bg-light rounded p-2 text-center">
+                                    <div class="small text-muted">Adolescent (13-17)</div>
+                                    <div class="fs-5 fw-bold" id="compAdol">0</div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="bg-light rounded p-2 text-center">
+                                    <div class="small text-muted">Young Adult (18-24)</div>
+                                    <div class="fs-5 fw-bold" id="compYoung">0</div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="bg-light rounded p-2 text-center">
+                                    <div class="small text-muted">Adult (25-44)</div>
+                                    <div class="fs-5 fw-bold" id="compAdult">0</div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="bg-light rounded p-2 text-center">
+                                    <div class="small text-muted">Middle Aged (45-59)</div>
+                                    <div class="fs-5 fw-bold" id="compMiddle">0</div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Hidden fields for form submission (auto-filled, not user-editable) -->
+                        <input type="hidden" name="family_members" id="fMembers" value="1">
+                        <input type="hidden" name="pwd_count" id="fPwd" value="0">
+                        <input type="hidden" name="pregnant_count" id="fPregnant" value="0">
+                        <input type="hidden" name="senior_count" id="fSenior" value="0">
+                        <input type="hidden" name="infant_count" id="fInfant" value="0">
+                        <input type="hidden" name="minor_count" id="fMinor" value="0">
+                        <input type="hidden" name="child_count" id="fChild" value="0">
+                        <input type="hidden" name="adolescent_count" id="fAdol" value="0">
+                        <input type="hidden" name="young_adult_count" id="fYoung" value="0">
+                        <input type="hidden" name="adult_count" id="fAdult" value="0">
+                        <input type="hidden" name="middle_aged_count" id="fMiddle" value="0">
 
                         <!-- Section 3: GPS -->
                         <h6 class="text-primary border-bottom pb-2 mb-3"><i class="fas fa-map-pin me-1"></i> GPS Coordinates <span class="text-danger">*</span></h6>
@@ -472,6 +560,21 @@ if ($role === 'admin') {
                         <select class="form-select" id="memberHHSelect" onchange="loadMembers()">
                             <option value="">-- Select a household --</option>
                         </select>
+                    </div>
+                    <!-- Composition summary for selected household -->
+                    <div id="membersComposition" class="d-none mb-3">
+                        <div class="alert alert-light border py-2 small mb-2">
+                            <i class="fas fa-calculator text-info me-1"></i>
+                            <strong>Auto-computed Family Composition</strong> (updates after every member change)
+                        </div>
+                        <div class="row g-2 mb-2">
+                            <div class="col-4 col-md-2"><div class="card p-2 text-center"><div class="text-muted" style="font-size:.7rem">Total</div><div class="fw-bold" id="mcTotal">0</div></div></div>
+                            <div class="col-4 col-md-2"><div class="card p-2 text-center"><div class="text-muted" style="font-size:.7rem">PWD</div><div class="fw-bold text-primary" id="mcPwd">0</div></div></div>
+                            <div class="col-4 col-md-2"><div class="card p-2 text-center"><div class="text-muted" style="font-size:.7rem">Pregnant</div><div class="fw-bold text-danger" id="mcPregnant">0</div></div></div>
+                            <div class="col-4 col-md-2"><div class="card p-2 text-center"><div class="text-muted" style="font-size:.7rem">Senior</div><div class="fw-bold text-warning" id="mcSenior">0</div></div></div>
+                            <div class="col-4 col-md-2"><div class="card p-2 text-center"><div class="text-muted" style="font-size:.7rem">Infant</div><div class="fw-bold text-info" id="mcInfant">0</div></div></div>
+                            <div class="col-4 col-md-2"><div class="card p-2 text-center"><div class="text-muted" style="font-size:.7rem">Minor</div><div class="fw-bold text-secondary" id="mcMinor">0</div></div></div>
+                        </div>
                     </div>
                     <div id="membersList"></div>
                     <div id="memberForm" class="d-none mt-3">
@@ -571,6 +674,8 @@ $(document).ready(function(){
                 loadMembers();
                 $('#memberForm').addClass('d-none');
                 showToast('Member saved.', 'success');
+                // Refresh composition panel from server response
+                if (res.composition) updateMembersComposition(res.composition);
             }
         }, 'json');
     });
@@ -693,17 +798,8 @@ function editHousehold(id){
             $('#fIP').val(h.ip_non_ip);
             $('#fEduc').val(h.educational_attainment);
             $('#fKit').val(h.preparedness_kit);
-            $('#fMembers').val(h.family_members);
-            $('#fPwd').val(h.pwd_count);
-            $('#fPregnant').val(h.pregnant_count);
-            $('#fSenior').val(h.senior_count);
-            $('#fInfant').val(h.infant_count);
-            $('#fMinor').val(h.minor_count);
-            $('#fChild').val(h.child_count);
-            $('#fAdol').val(h.adolescent_count);
-            $('#fYoung').val(h.young_adult_count);
-            $('#fAdult').val(h.adult_count);
-            $('#fMiddle').val(h.middle_aged_count);
+            // Populate composition (read-only display + hidden fields)
+            updateCompositionPanel(h);
             $('#fLat').val(h.latitude);
             $('#fLng').val(h.longitude);
             if (h.latitude && h.longitude) {
@@ -714,6 +810,38 @@ function editHousehold(id){
             $('#fMembersData').val(JSON.stringify(h.members || []));
         }, 200);
     });
+}
+
+// Update the composition panel display and hidden fields from household data
+function updateCompositionPanel(h){
+    $('#compTotal').text(h.family_members || 0);
+    $('#compPwd').text(h.pwd_count || 0);
+    $('#compPregnant').text(h.pregnant_count || 0);
+    $('#compSenior').text(h.senior_count || 0);
+    $('#compInfant').text(h.infant_count || 0);
+    $('#compMinor').text(h.minor_count || 0);
+    $('#compChild').text(h.child_count || 0);
+    $('#compAdol').text(h.adolescent_count || 0);
+    $('#compYoung').text(h.young_adult_count || 0);
+    $('#compAdult').text(h.adult_count || 0);
+    $('#compMiddle').text(h.middle_aged_count || 0);
+    // Update hidden fields
+    $('#fMembers').val(h.family_members || 1);
+    $('#fPwd').val(h.pwd_count || 0);
+    $('#fPregnant').val(h.pregnant_count || 0);
+    $('#fSenior').val(h.senior_count || 0);
+    $('#fInfant').val(h.infant_count || 0);
+    $('#fMinor').val(h.minor_count || 0);
+    $('#fChild').val(h.child_count || 0);
+    $('#fAdol').val(h.adolescent_count || 0);
+    $('#fYoung').val(h.young_adult_count || 0);
+    $('#fAdult').val(h.adult_count || 0);
+    $('#fMiddle').val(h.middle_aged_count || 0);
+}
+
+function resetCompositionPanel(){
+    $('#compTotal').text('1');
+    $('#compPwd, #compPregnant, #compSenior, #compInfant, #compMinor, #compChild, #compAdol, #compYoung, #compAdult, #compMiddle').text('0');
 }
 
 function deleteHousehold(id){
@@ -731,6 +859,7 @@ function resetForm(){
     $('#formTitle').html('<i class="fas fa-plus me-1"></i> Add New Household');
     if (formMarker) { formMap.removeLayer(formMarker); formMarker = null; }
     $('#gpsError').addClass('d-none');
+    resetCompositionPanel();
 }
 
 // ── Map for form ──
@@ -830,9 +959,24 @@ function loadHouseholdDropdownForMembers(){
     $('#membersList').html('');
 }
 
+// Update members tab composition panel from server data
+function updateMembersComposition(c){
+    $('#mcTotal').text(c.family_members || 0);
+    $('#mcPwd').text(c.pwd_count || 0);
+    $('#mcPregnant').text(c.pregnant_count || 0);
+    $('#mcSenior').text(c.senior_count || 0);
+    $('#mcInfant').text(c.infant_count || 0);
+    $('#mcMinor').text(c.minor_count || 0);
+    $('#membersComposition').removeClass('d-none');
+}
+
 function loadMembers(){
     let hid = $('#memberHHSelect').val();
-    if (!hid) { $('#membersList').html(''); return; }
+    if (!hid) { $('#membersList').html(''); $('#membersComposition').addClass('d-none'); return; }
+    // Fetch composition for this household
+    $.getJSON('household_management.php?ajax=get&id=' + hid, function(h){
+        if (h) updateMembersComposition(h);
+    });
     $.getJSON('household_management.php?ajax=members&household_id=' + hid, function(members){
         let html = `<button class="btn btn-sm btn-primary mb-2" onclick="addMember(${hid})"><i class="fas fa-plus me-1"></i> Add Member</button>`;
         html += '<table class="table table-sm"><thead><tr><th>Name</th><th>Age</th><th>Gender</th><th>Relationship</th><th>Flags</th><th>Actions</th></tr></thead><tbody>';
@@ -881,7 +1025,11 @@ function editMember(mid, hid){
 function deleteMember(mid){
     if (!confirm('Delete this member?')) return;
     $.post('household_management.php?ajax=delete_member', {member_id: mid}, function(res){
-        if (res.ok) { loadMembers(); showToast('Member deleted.', 'success'); }
+        if (res.ok) {
+            loadMembers();
+            showToast('Member deleted.', 'success');
+            if (res.composition) updateMembersComposition(res.composition);
+        }
     }, 'json');
 }
 
