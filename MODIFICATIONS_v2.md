@@ -758,4 +758,4 @@ point-in-polygon computation built in this version are the
 exact foundation needed for all future upgrades listed above.
 
 
-[Note: If you think it need to restart from scratch is the better way to do to have a better implementation. Tell me why and start coding when i said Go if our thoughts aligned].
+[Note: If you think it need to restart from scratch is the better way to do to have a better implementation. Tell me why and start coding when i said Go if our thoughts aligned. Finally, make a modular push and commit if the phases are too wide, make a separation module per phase.].
