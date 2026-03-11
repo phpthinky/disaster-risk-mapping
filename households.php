@@ -2,6 +2,7 @@
 // households.php
 session_start();
 require_once 'config.php';
+require_once 'sync_functions.php';
 
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
@@ -121,14 +122,15 @@ $stmt->execute([$household_head, $barangay_id, $zone, $gender, $age, $gender, $h
             }
             
             $pdo->commit();
+            handle_sync($pdo, (int)$barangay_id);
             $success = "Household added successfully!";
-            
+
         } catch (Exception $e) {
             $pdo->rollBack();
             $error = "Error: " . $e->getMessage();
         }
     }
-    
+
     if (isset($_POST['update_household'])) {
         $household_id = $_POST['household_id'];
         $household_head = $_POST['household_head'];
@@ -196,8 +198,9 @@ $stmt->execute([$household_head, $barangay_id, $zone, $gender, $age, $gender, $h
             }
             
             $pdo->commit();
+            handle_sync($pdo, (int)$barangay_id);
             $success = "Household updated successfully!";
-            
+
         } catch (Exception $e) {
             $pdo->rollBack();
             $error = "Error: " . $e->getMessage();
@@ -208,10 +211,19 @@ $stmt->execute([$household_head, $barangay_id, $zone, $gender, $age, $gender, $h
 // Handle delete action
 if (isset($_GET['delete_id'])) {
     $delete_id = $_GET['delete_id'];
-    
+
+    // Get barangay_id before deleting for sync
+    $getBrgy = $pdo->prepare("SELECT barangay_id FROM households WHERE id = ?");
+    $getBrgy->execute([$delete_id]);
+    $delBrgy = $getBrgy->fetchColumn();
+
     $stmt = $pdo->prepare("DELETE FROM households WHERE id = ?");
     $stmt->execute([$delete_id]);
-    
+
+    if ($delBrgy) {
+        handle_sync($pdo, (int)$delBrgy);
+    }
+
     header('Location: households.php?deleted=1');
     exit;
 }
