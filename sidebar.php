@@ -65,18 +65,18 @@ $currentPage = basename($_SERVER['PHP_SELF']);
         </a>
       </li>
       <li class="nav-item mb-1">
-        <a class="nav-link text-white d-flex align-items-center px-3 py-2 rounded hover-bg <?php echo ($currentPage == 'population_data.php') ? 'active' : ''; ?>" href="population_data.php">
-          <i class="fas fa-users me-2"></i> Population Data
-        </a>
-      </li>
-    <li class="nav-item mb-1">
-        <a class="nav-link text-white d-flex align-items-center px-3 py-2 rounded hover-bg <?php echo ($currentPage == 'households.php') ? 'active' : ''; ?>" href="households.php">
-          <i class="fas fa-users me-2"></i> Households
+        <a class="nav-link text-white d-flex align-items-center px-3 py-2 rounded hover-bg <?php echo ($currentPage == 'household_management.php') ? 'active' : ''; ?>" href="household_management.php">
+          <i class="fas fa-house-user me-2"></i> Household Management
         </a>
       </li>
       <li class="nav-item mb-1">
         <a class="nav-link text-white d-flex align-items-center px-3 py-2 rounded hover-bg <?php echo ($currentPage == 'hazard_data.php') ? 'active' : ''; ?>" href="hazard_data.php">
           <i class="fas fa-exclamation-triangle me-2"></i> Hazard Data
+        </a>
+      </li>
+      <li class="nav-item mb-1">
+        <a class="nav-link text-white d-flex align-items-center px-3 py-2 rounded hover-bg <?php echo ($currentPage == 'incident_reports.php') ? 'active' : ''; ?>" href="incident_reports.php">
+          <i class="fas fa-file-circle-exclamation me-2"></i> Incident Reports
         </a>
       </li>
       <li class="nav-item mb-1">
@@ -107,19 +107,19 @@ $currentPage = basename($_SERVER['PHP_SELF']);
           <i class="fas fa-map me-2"></i> Interactive Map
         </a>
       </li>
+      <li class="nav-item mb-1">
+        <a class="nav-link text-white d-flex align-items-center px-3 py-2 rounded hover-bg <?php echo ($currentPage == 'barangay_management.php') ? 'active' : ''; ?>" href="barangay_management.php">
+          <i class="fas fa-map-marked-alt me-2"></i> Barangay Management
+        </a>
+      </li>
         <li class="nav-item mb-1">
         <a class="nav-link text-white d-flex align-items-center px-3 py-2 rounded hover-bg <?php echo ($currentPage == 'announcements.php') ? 'active' : ''; ?>" href="announcements.php">
           <i class="fas fa-bullhorn me-2"></i> Announcements
         </a>
       </li>
       <li class="nav-item mb-1">
-        <a class="nav-link text-white d-flex align-items-center px-3 py-2 rounded hover-bg <?php echo ($currentPage == 'population_data.php') ? 'active' : ''; ?>" href="population_data.php">
-          <i class="fas fa-users me-2"></i> Population Data
-        </a>
-      </li>
-    <li class="nav-item mb-1">
-        <a class="nav-link text-white d-flex align-items-center px-3 py-2 rounded hover-bg <?php echo ($currentPage == 'households.php') ? 'active' : ''; ?>" href="households.php">
-          <i class="fas fa-users me-2"></i> Households
+        <a class="nav-link text-white d-flex align-items-center px-3 py-2 rounded hover-bg <?php echo ($currentPage == 'household_management.php') ? 'active' : ''; ?>" href="household_management.php">
+          <i class="fas fa-house-user me-2"></i> Household Management
         </a>
       </li>
       <li class="nav-item mb-1">
@@ -128,8 +128,23 @@ $currentPage = basename($_SERVER['PHP_SELF']);
         </a>
       </li>
       <li class="nav-item mb-1">
+        <a class="nav-link text-white d-flex align-items-center px-3 py-2 rounded hover-bg <?php echo ($currentPage == 'incident_reports.php') ? 'active' : ''; ?>" href="incident_reports.php">
+          <i class="fas fa-file-circle-exclamation me-2"></i> Incident Reports
+        </a>
+      </li>
+      <li class="nav-item mb-1">
+        <a class="nav-link text-white d-flex align-items-center px-3 py-2 rounded hover-bg <?php echo ($currentPage == 'evacuation_centers.php') ? 'active' : ''; ?>" href="evacuation_centers.php">
+          <i class="fas fa-building-shield me-2"></i> Evacuation Centers
+        </a>
+      </li>
+      <li class="nav-item mb-1">
         <a class="nav-link text-white d-flex align-items-center px-3 py-2 rounded hover-bg <?php echo ($currentPage == 'risk_analysis.php') ? 'active' : ''; ?>" href="risk_analysis.php">
           <i class="fas fa-chart-bar me-2"></i> Risk Analysis
+        </a>
+      </li>
+      <li class="nav-item mb-1">
+        <a class="nav-link text-white d-flex align-items-center px-3 py-2 rounded hover-bg <?php echo ($currentPage == 'population_archive.php') ? 'active' : ''; ?>" href="population_archive.php">
+          <i class="fas fa-clock-rotate-left me-2"></i> Population Archive
         </a>
       </li>
       <li class="nav-item mb-1">
