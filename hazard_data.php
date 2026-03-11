@@ -3,44 +3,52 @@
 session_start();
 require_once 'config.php';
 
+require_once 'sync_functions.php';
+
 // Handle form submission
 if ($_POST) {
     if (isset($_POST['submit_hazard'])) {
         $hazard_type_id = $_POST['hazard_type_id'];
-        // For barangay staff, automatically use their barangay_id
         $barangay_id = ($_SESSION['role'] == 'barangay_staff') ? $_SESSION['barangay_id'] : $_POST['barangay_id'];
         $risk_level = $_POST['risk_level'];
         $area_km2 = $_POST['area_km2'];
-        $affected_population = $_POST['affected_population'];
         $description = $_POST['description'];
         $coordinates = $_POST['coordinates'];
 
-        $stmt = $pdo->prepare("INSERT INTO hazard_zones 
-                              (hazard_type_id, barangay_id, risk_level, area_km2, affected_population, description, coordinates) 
+        // Auto-compute affected_population from barangays.population
+        $popStmt = $pdo->prepare("SELECT population FROM barangays WHERE id = ?");
+        $popStmt->execute([$barangay_id]);
+        $affected_population = $popStmt->fetchColumn() ?: 0;
+
+        $stmt = $pdo->prepare("INSERT INTO hazard_zones
+                              (hazard_type_id, barangay_id, risk_level, area_km2, affected_population, description, coordinates)
                               VALUES (?, ?, ?, ?, ?, ?, ?)");
         $stmt->execute([$hazard_type_id, $barangay_id, $risk_level, $area_km2, $affected_population, $description, $coordinates]);
-        
+
         $success = "Hazard zone added successfully!";
     }
-    
+
     // Update hazard zone
     if (isset($_POST['update_hazard'])) {
         $hazard_id = $_POST['hazard_id'];
         $hazard_type_id = $_POST['hazard_type_id'];
-        // For barangay staff, automatically use their barangay_id
         $barangay_id = ($_SESSION['role'] == 'barangay_staff') ? $_SESSION['barangay_id'] : $_POST['barangay_id'];
         $risk_level = $_POST['risk_level'];
         $area_km2 = $_POST['area_km2'];
-        $affected_population = $_POST['affected_population'];
         $description = $_POST['description'];
         $coordinates = $_POST['coordinates'];
 
-        $stmt = $pdo->prepare("UPDATE hazard_zones 
-                              SET hazard_type_id = ?, barangay_id = ?, risk_level = ?, area_km2 = ?, 
-                                  affected_population = ?, description = ?, coordinates = ?, updated_at = NOW() 
+        // Auto-compute affected_population from barangays.population
+        $popStmt = $pdo->prepare("SELECT population FROM barangays WHERE id = ?");
+        $popStmt->execute([$barangay_id]);
+        $affected_population = $popStmt->fetchColumn() ?: 0;
+
+        $stmt = $pdo->prepare("UPDATE hazard_zones
+                              SET hazard_type_id = ?, barangay_id = ?, risk_level = ?, area_km2 = ?,
+                                  affected_population = ?, description = ?, coordinates = ?, updated_at = NOW()
                               WHERE id = ?");
         $stmt->execute([$hazard_type_id, $barangay_id, $risk_level, $area_km2, $affected_population, $description, $coordinates, $hazard_id]);
-        
+
         $success = "Hazard zone updated successfully!";
     }
 }
@@ -493,11 +501,12 @@ if ($_SESSION['role'] == 'barangay_staff') {
                                                     value="<?php echo $edit_hazard ? $edit_hazard['area_km2'] : ''; ?>" required>
                                             </div>
                                         </div>
-                                        <div class="col-md-6" style="display: none">
+                                        <div class="col-md-6">
                                             <div class="mb-3">
-                                                <label class="form-label">Affected Population</label>
-                                                <input type="number" name="affected_population" class="form-control" 
-                                                    value="<?php echo $edit_hazard ? $edit_hazard['affected_population'] : ''; ?>">
+                                                <label class="form-label">Affected Population <span class="badge bg-info">Auto-computed</span></label>
+                                                <input type="text" class="form-control" id="affectedPopDisplay"
+                                                    value="<?php echo $edit_hazard ? number_format($edit_hazard['affected_population']) : 'Select a barangay'; ?>" readonly disabled>
+                                                <small class="text-muted">Computed from household data. Cannot be edited manually.</small>
                                             </div>
                                         </div>
                                     </div>
