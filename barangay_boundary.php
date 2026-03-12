@@ -181,8 +181,13 @@ $pageTitle = $editId ? 'Edit Barangay' : 'Add New Barangay';
     <title><?= $pageTitle ?> - Sablayan Risk Assessment</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+<!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+
+<!-- Leaflet Fullscreen CSS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.fullscreen@2.4.0/dist/leaflet.fullscreen.css" />
     <style>
         body { background: #f0f2f5; }
         .main-content { margin-left: 0; }
@@ -194,6 +199,77 @@ $pageTitle = $editId ? 'Edit Barangay' : 'Add New Barangay';
         .overlap-alert { display: none; }
         .validation-msg { display: none; }
         .legend-box { display: inline-block; width: 14px; height: 14px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+    </style>
+
+    <style type="text/css">
+        
+        /* Style for database boundary labels */
+.database-boundary-label {
+    background: rgba(230, 126, 34, 0.8);
+    color: white !important;
+    font-weight: bold;
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid white;
+    font-size: 11px;
+    white-space: nowrap;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+/* Style for the legend */
+.legend-box {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    margin-right: 6px;
+    vertical-align: middle;
+}
+
+.legend-box.database {
+    background: rgba(230, 126, 34, 0.3);
+    border: 2px dashed #e67e22;
+}
+
+.legend-box.osm {
+    background: rgba(0, 0, 0, 0.1);
+    border: 2px solid #3388ff;
+}
+
+/* Fullscreen styles */
+:-webkit-full-screen #boundaryMap {
+    width: 100%;
+    height: 100%;
+}
+
+:-moz-full-screen #boundaryMap {
+    width: 100%;
+    height: 100%;
+}
+
+:fullscreen #boundaryMap {
+    width: 100%;
+    height: 100%;
+}
+
+.leaflet-control-fullscreen a {
+    background: #fff url('https://unpkg.com/leaflet.fullscreen/icon-fullscreen.png') no-repeat 0 0;
+    background-size: 26px 52px;
+    width: 34px;
+    height: 34px;
+    line-height: 34px;
+    border-radius: 4px;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.65);
+}
+
+.leaflet-control-fullscreen a:hover {
+    background-position: 0 -26px;
+}
+
+#boundaryMap {
+    min-height: 500px;
+    transition: all 0.3s ease;
+}
     </style>
 </head>
 <body>
@@ -328,27 +404,157 @@ $pageTitle = $editId ? 'Edit Barangay' : 'Add New Barangay';
     </main>
 </div>
 </div>
-
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+<!-- Leaflet Fullscreen JS -->
+<script src="https://cdn.jsdelivr.net/npm/leaflet.fullscreen@2.4.0/dist/Leaflet.fullscreen.min.js"></script>
+
 <script>
 const editId = <?= $editId ? $editId : 'null' ?>;
 let existingBoundaries = [];
 let hasOverlap = false;
 
-// ── Tile layers ──
-const osm       = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19});
-const satellite  = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom:19});
-const terrain    = L.tileLayer('https://tile.opentopomap.org/{z}/{x}/{y}.png', {maxZoom:17});
-const hybrid     = L.layerGroup([
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom:19}),
-    L.tileLayer('https://stamen-tiles.a.ssl.fastly.net/toner-labels/{z}/{x}/{y}.png', {maxZoom:19, opacity:0.7})
+// ── Tile layers with better boundary visibility ──
+
+// Standard OpenStreetMap
+const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+});
+
+// Humanitarian style - SHOWS BOUNDARIES VERY CLEARLY (recommended)
+const humanitarian = L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, Tiles style by Humanitarian OpenStreetMap Team'
+});
+
+// OpenStreetMap France style - also good boundaries
+const osmFrance = L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', {
+    maxZoom: 20,
+    attribution: '&copy; OpenStreetMap France | &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+});
+
+// Satellite only
+const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom: 19,
+    attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+});
+
+// Terrain
+const terrain = L.tileLayer('https://tile.opentopomap.org/{z}/{x}/{y}.png', {
+    maxZoom: 17,
+    attribution: 'Map data: &copy; <a href="https://www.opentopomap.org">OpenTopoMap</a> contributors'
+});
+
+// FIXED HYBRID: Satellite with visible boundaries from Humanitarian layer
+const hybrid = L.layerGroup([
+    // Base satellite imagery
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 19,
+        attribution: 'Tiles &copy; Esri'
+    }),
+    // Humanitarian overlay (shows boundaries and labels clearly)
+    L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        opacity: 0.6,
+        attribution: 'Boundaries &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    })
 ]);
 
-const map = L.map('boundaryMap', { layers: [satellite], center: [12.84, 120.87], zoom: 11 });
-L.control.layers({'OpenStreetMap': osm, 'Satellite': satellite, 'Terrain': terrain, 'Hybrid': hybrid}).addTo(map);
+// CartoDB Light (clean option with boundaries)
+const cartoDB = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, &copy; CartoDB'
+});
+
+// Initialize map with Humanitarian layer (best for seeing boundaries)
+const map = L.map('boundaryMap', { 
+    layers: [humanitarian],  // Start with Humanitarian to see boundaries clearly
+    center: [12.84, 120.87], 
+    zoom: 11 
+});
+
+// Remove the L.control.fullscreen line and replace with this custom solution:
+
+// Custom fullscreen button
+var fullscreenControl = L.control({ position: 'topleft' });
+
+fullscreenControl.onAdd = function(map) {
+    var container = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
+    
+    container.innerHTML = '<a href="#" title="Toggle Fullscreen" style="background-color: white; width: 34px; height: 34px; line-height: 34px; text-align: center; font-size: 20px; display: block;">⛶</a>';
+    
+    container.onclick = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        var mapContainer = map.getContainer();
+        
+        if (!document.fullscreenElement) {
+            // Enter fullscreen
+            if (mapContainer.requestFullscreen) {
+                mapContainer.requestFullscreen();
+            } else if (mapContainer.mozRequestFullScreen) {
+                mapContainer.mozRequestFullScreen();
+            } else if (mapContainer.webkitRequestFullscreen) {
+                mapContainer.webkitRequestFullscreen();
+            } else if (mapContainer.msRequestFullscreen) {
+                mapContainer.msRequestFullscreen();
+            }
+        } else {
+            // Exit fullscreen
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            } else if (document.mozCancelFullScreen) {
+                document.mozCancelFullScreen();
+            } else if (document.webkitExitFullscreen) {
+                document.webkitExitFullscreen();
+            } else if (document.msExitFullscreen) {
+                document.msExitFullscreen();
+            }
+        }
+        
+        // Invalidate map size after fullscreen change
+        setTimeout(function() {
+            map.invalidateSize();
+        }, 100);
+    };
+    
+    return container;
+};
+
+fullscreenControl.addTo(map);
+
+// Listen for fullscreen change events
+document.addEventListener('fullscreenchange', function() {
+    setTimeout(function() { map.invalidateSize(); }, 100);
+});
+
+document.addEventListener('webkitfullscreenchange', function() {
+    setTimeout(function() { map.invalidateSize(); }, 100);
+});
+
+document.addEventListener('mozfullscreenchange', function() {
+    setTimeout(function() { map.invalidateSize(); }, 100);
+});
+
+document.addEventListener('MSFullscreenChange', function() {
+    setTimeout(function() { map.invalidateSize(); }, 100);
+});
+// Add layer controls with descriptive names
+L.control.layers({
+    '🌍 Humanitarian (Best Boundaries)': humanitarian,
+    '🗺️ OpenStreetMap Standard': osm,
+    '🇫🇷 OpenStreetMap France': osmFrance,
+    '🛰️ Satellite Only': satellite,
+    '🗻 Terrain': terrain,
+    '🛰️➕ Hybrid Satellite + Boundaries': hybrid,
+    '☀️ CartoDB Light': cartoDB
+}, null, {
+    position: 'topright'
+}).addTo(map);
 
 // Drawing layer
 const drawnItems = new L.FeatureGroup();
@@ -361,18 +567,33 @@ const drawControl = new L.Control.Draw({
             allowIntersection: false,
             shapeOptions: { color: '#0d6efd', weight: 3, fillOpacity: 0.15 }
         },
-        polyline: false, rectangle: false, circle: false, circlemarker: false, marker: false
+        polyline: false, 
+        rectangle: false, 
+        circle: false, 
+        circlemarker: false, 
+        marker: false
     },
     edit: { featureGroup: drawnItems }
 });
 map.addControl(drawControl);
 
-// Existing boundaries overlay (orange)
+// Existing boundaries overlay (orange) - YOUR DRAWN BOUNDARIES
 const existingLayer = L.layerGroup().addTo(map);
 
 // Mouse coordinate display
 map.on('mousemove', function(e){
     $('#coordsDisplay').text('Lat: ' + e.latlng.lat.toFixed(6) + ', Lng: ' + e.latlng.lng.toFixed(6));
+});
+
+// Handle fullscreen change events
+map.on('fullscreenchange', function() {
+    if (map.isFullscreen()) {
+        console.log('Entered fullscreen');
+        setTimeout(function(){ map.invalidateSize(); }, 100);
+    } else {
+        console.log('Exited fullscreen');
+        setTimeout(function(){ map.invalidateSize(); }, 100);
+    }
 });
 
 // ── Area calculation (geodesic) ──
@@ -412,10 +633,16 @@ function checkOverlap(newGeoCoords) {
             let other = JSON.parse(b.boundary_geojson);
             let otherRing = other.coordinates[0];
             for (let pt of newGeoCoords) {
-                if (pointInPolygon(pt[1], pt[0], otherRing)) { overlaps.push(b.name); return; }
+                if (pointInPolygon(pt[1], pt[0], otherRing)) { 
+                    overlaps.push(b.name); 
+                    return; 
+                }
             }
             for (let pt of otherRing) {
-                if (pointInPolygon(pt[1], pt[0], newGeoCoords)) { overlaps.push(b.name); return; }
+                if (pointInPolygon(pt[1], pt[0], newGeoCoords)) { 
+                    overlaps.push(b.name); 
+                    return; 
+                }
             }
         } catch(e){}
     });
@@ -460,7 +687,7 @@ function validatePolygon(layer) {
     } else {
         hasOverlap = false;
         $('#overlapAlert').slideUp();
-        showValidation('Polygon valid (' + latlngs.length + ' points, ' + calcArea.toFixed(4) + ' km\u00B2). Ready to save.', 'success');
+        showValidation('Polygon valid (' + latlngs.length + ' points, ' + calcArea.toFixed(4) + ' km²). Ready to save.', 'success');
         $('#saveBtn').prop('disabled', false);
     }
 
@@ -469,7 +696,7 @@ function validatePolygon(layer) {
 
 function showValidation(msg, type) {
     let color = type === 'danger' ? '#dc3545' : '#198754';
-    let icon = type === 'danger' ? 'times-circle' : 'check-circle';
+    let icon = type === 'danger' ? 'exclamation-circle' : 'check-circle';
     $('#validationMsg').html(`<i class="fas fa-${icon}" style="color:${color}"></i> <span style="color:${color}">${msg}</span>`).show();
 }
 
@@ -516,22 +743,61 @@ map.on(L.Draw.Event.DELETED, function(e){
     $('#saveBtn').prop('disabled', false);
 });
 
-// ── Load existing boundaries as reference ──
+// ── Load existing boundaries from DATABASE as reference ──
 function loadExistingBoundaries() {
     $.getJSON('barangay_boundary.php?ajax=boundaries', function(data){
+        console.log('Loaded', data.length, 'existing boundaries from database');
         existingBoundaries = data;
         existingLayer.clearLayers();
+        
+        if (data.length === 0) {
+            console.log('No existing boundaries in database');
+            return;
+        }
+        
+        let bounds = L.latLngBounds();
+        
         data.forEach(b => {
             if (b.id === editId) return; // don't show self in existing layer
+            
             try {
                 let geo = JSON.parse(b.boundary_geojson);
+                
+                // More visible style for database boundaries
                 let layer = L.geoJSON(geo, {
-                    style: { color: '#e67e22', weight: 2, fillOpacity: 0.08, fillColor: '#e67e22', dashArray: '5,5' }
+                    style: { 
+                        color: '#e67e22',        // Orange border
+                        weight: 3,                // Thicker border
+                        fillOpacity: 0.15,         // Semi-transparent fill
+                        fillColor: '#e67e22',      // Orange fill
+                        dashArray: '5,5',          // Dashed line to distinguish from OSM boundaries
+                        opacity: 0.9                // Border opacity
+                    }
                 });
-                layer.bindTooltip(b.name, {permanent: true, direction: 'center', className: 'bg-transparent border-0 text-dark fw-bold shadow-none'});
+                
+                // Add tooltip with barangay name
+                layer.bindTooltip(b.name, {
+                    permanent: true, 
+                    direction: 'center',
+                    className: 'database-boundary-label'
+                });
+                
                 existingLayer.addLayer(layer);
-            } catch(e){}
+                
+                // Extend bounds
+                if (layer.getBounds().isValid()) {
+                    bounds.extend(layer.getBounds());
+                }
+                
+                console.log('Added database boundary:', b.name);
+            } catch(e){
+                console.error('Error parsing boundary for', b.name, e);
+            }
         });
+        
+        // Don't auto-fit to database boundaries, let user see OSM boundaries too
+    }).fail(function(xhr, status, error) {
+        console.error('Failed to load database boundaries:', error);
     });
 }
 
@@ -653,7 +919,8 @@ $(document).ready(function(){
     loadStaffUsers();
     loadExistingBoundaries();
     setTimeout(function(){ map.invalidateSize(); }, 300);
+    
+    // Add a message to show which layer has best boundaries
+    console.log('Map initialized. Use Humanitarian layer for best boundary visibility.');
 });
 </script>
-</body>
-</html>
