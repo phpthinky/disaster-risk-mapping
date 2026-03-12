@@ -1,5 +1,5 @@
 <?php
-// barangay_management.php — Admin only
+// barangay_management.php — Admin only — Barangay list + delete
 session_start();
 require_once 'config.php';
 require_once 'sync_functions.php';
@@ -46,46 +46,6 @@ if (isset($_GET['ajax'])) {
             ORDER BY username ASC
         ")->fetchAll(PDO::FETCH_ASSOC);
         echo json_encode($rows);
-        exit;
-    }
-
-    // Save (add or edit)
-    if ($_GET['ajax'] === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-        $name       = trim($_POST['name'] ?? '');
-        $area_km2   = $_POST['area_km2'] ?: null;
-        $coords     = trim($_POST['coordinates'] ?? '');
-        $staff_id   = $_POST['staff_user_id'] ?: null;
-        $id         = $_POST['id'] ?? null;
-
-        if ($name === '') {
-            echo json_encode(['ok' => false, 'msg' => 'Barangay name is required.']);
-            exit;
-        }
-
-        try {
-            if ($id) {
-                // Update
-                $stmt = $pdo->prepare("UPDATE barangays SET name = ?, area_km2 = ?, coordinates = ? WHERE id = ?");
-                $stmt->execute([$name, $area_km2, $coords, $id]);
-
-                // Unassign previous staff
-                $pdo->prepare("UPDATE users SET barangay_id = NULL WHERE barangay_id = ? AND role = 'barangay_staff'")->execute([$id]);
-            } else {
-                // Insert
-                $stmt = $pdo->prepare("INSERT INTO barangays (name, area_km2, coordinates) VALUES (?, ?, ?)");
-                $stmt->execute([$name, $area_km2, $coords]);
-                $id = $pdo->lastInsertId();
-            }
-
-            // Assign staff
-            if ($staff_id) {
-                $pdo->prepare("UPDATE users SET barangay_id = ? WHERE id = ? AND role = 'barangay_staff'")->execute([$id, $staff_id]);
-            }
-
-            echo json_encode(['ok' => true, 'msg' => 'Barangay saved successfully.']);
-        } catch (Exception $e) {
-            echo json_encode(['ok' => false, 'msg' => $e->getMessage()]);
-        }
         exit;
     }
 
@@ -139,9 +99,9 @@ if (isset($_GET['ajax'])) {
         <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 main-content">
             <div class="d-flex justify-content-between align-items-center pt-3 pb-2 mb-3 border-bottom">
                 <h4 class="fw-bold"><i class="fas fa-map-marked-alt me-2"></i>Barangay Management</h4>
-                <button class="btn btn-primary" onclick="openAddModal()">
+                <a href="barangay_boundary.php" class="btn btn-primary">
                     <i class="fas fa-plus me-1"></i> Add Barangay
-                </button>
+                </a>
             </div>
 
             <!-- Summary cards -->
@@ -177,56 +137,6 @@ if (isset($_GET['ajax'])) {
     </div>
 </div>
 
-<!-- Add/Edit Modal -->
-<div class="modal fade" id="brgyModal" tabindex="-1">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header bg-primary text-white">
-        <h5 class="modal-title" id="brgyModalTitle">Add Barangay</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-      </div>
-      <form id="brgyForm">
-        <div class="modal-body">
-          <input type="hidden" name="id" id="brgyId">
-          <div class="mb-3">
-            <label class="form-label">Barangay Name <span class="text-danger">*</span></label>
-            <input type="text" class="form-control" name="name" id="brgyName" required>
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Area (km&sup2;) <span class="text-muted small">— Official / Manual</span></label>
-            <input type="number" step="0.01" class="form-control" name="area_km2" id="brgyArea">
-          </div>
-          <div class="mb-3" id="calcAreaField" style="display:none">
-            <label class="form-label">Calculated Map Area (km&sup2;) <span class="badge bg-info">Auto</span></label>
-            <input type="text" class="form-control bg-light" id="brgyCalcArea" readonly>
-            <div class="form-text">Auto-calculated from the drawn boundary polygon.</div>
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Center Coordinates (lat, lng)</label>
-            <input type="text" class="form-control" name="coordinates" id="brgyCoords" placeholder="e.g. 12.8435, 120.8754">
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Assign Staff User</label>
-            <select class="form-select" name="staff_user_id" id="brgyStaff">
-              <option value="">-- None --</option>
-            </select>
-          </div>
-          <!-- Computed stats (shown when editing) -->
-          <div id="computedStats" class="d-none">
-            <hr>
-            <h6 class="text-muted">Computed Statistics (read-only)</h6>
-            <div class="row g-2" id="statsGrid"></div>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i> Save</button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
-
 <!-- Delete confirm Modal -->
 <div class="modal fade" id="deleteModal" tabindex="-1">
   <div class="modal-dialog modal-sm">
@@ -250,27 +160,12 @@ if (isset($_GET['ajax'])) {
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script>
-const brgyModal = new bootstrap.Modal('#brgyModal');
 const deleteModal = new bootstrap.Modal('#deleteModal');
 let allData = [];
 let deleteId = null;
 
 $(document).ready(function(){
     loadData();
-    loadStaffUsers();
-
-    $('#brgyForm').on('submit', function(e){
-        e.preventDefault();
-        $.post('barangay_management.php?ajax=save', $(this).serialize(), function(res){
-            if (res.ok) {
-                brgyModal.hide();
-                loadData();
-                showToast(res.msg, 'success');
-            } else {
-                showToast(res.msg, 'danger');
-            }
-        }, 'json');
-    });
 
     $('#confirmDeleteBtn').on('click', function(){
         if (!deleteId) return;
@@ -295,14 +190,6 @@ function loadData(){
         allData = res.data;
         renderSummary();
         renderTable('');
-    });
-}
-
-function loadStaffUsers(){
-    $.getJSON('barangay_management.php?ajax=staff_users', function(users){
-        let opts = '<option value="">-- None --</option>';
-        users.forEach(u => opts += `<option value="${u.id}">${u.username}</option>`);
-        $('#brgyStaff').html(opts);
     });
 }
 
@@ -341,56 +228,12 @@ function renderTable(filter){
             <td class="text-center" style="font-size:.85rem">${areaDisplay}</td>
             <td class="text-center">${boundary}</td>
             <td class="text-center">
-                <button class="btn btn-sm btn-outline-primary me-1" onclick="openEditModal(${b.id})" title="Edit"><i class="fas fa-edit"></i></button>
-                <a href="barangay_boundary.php?id=${b.id}" class="btn btn-sm btn-outline-success me-1" title="Draw Boundary"><i class="fas fa-draw-polygon"></i></a>
+                <a href="barangay_boundary.php?id=${b.id}" class="btn btn-sm btn-outline-primary me-1" title="Edit"><i class="fas fa-edit"></i></a>
                 <button class="btn btn-sm btn-outline-danger" onclick="openDeleteModal(${b.id}, '${esc(b.name)}')" title="Delete"><i class="fas fa-trash"></i></button>
             </td>
         </tr>`;
     });
     $('#brgyBody').html(html);
-}
-
-function openAddModal(){
-    $('#brgyModalTitle').text('Add Barangay');
-    $('#brgyForm')[0].reset();
-    $('#brgyId').val('');
-    $('#computedStats').addClass('d-none');
-    $('#calcAreaField').hide();
-    brgyModal.show();
-}
-
-function openEditModal(id){
-    $.getJSON('barangay_management.php?ajax=get&id=' + id, function(b){
-        if (!b) return;
-        $('#brgyModalTitle').text('Edit Barangay');
-        $('#brgyId').val(b.id);
-        $('#brgyName').val(b.name);
-        $('#brgyArea').val(b.area_km2);
-        if (b.calculated_area_km2) {
-            $('#brgyCalcArea').val(parseFloat(b.calculated_area_km2).toFixed(4));
-            $('#calcAreaField').show();
-        } else {
-            $('#calcAreaField').hide();
-        }
-        $('#brgyCoords').val(b.coordinates);
-        $('#brgyStaff').val(b.staff_user_id || '');
-        // Show computed stats
-        let stats = [
-            {label:'Households', val: b.household_count||0},
-            {label:'Population', val: b.population||0},
-            {label:'PWD', val: b.pwd_count||0},
-            {label:'Seniors', val: b.senior_count||0},
-            {label:'Children', val: b.children_count||0},
-            {label:'Infants', val: b.infant_count||0},
-            {label:'Pregnant', val: b.pregnant_count||0},
-            {label:'IP', val: b.ip_count||0},
-        ];
-        let grid = '';
-        stats.forEach(s => grid += `<div class="col-6 col-md-3"><div class="bg-light rounded p-2 text-center"><div class="small text-muted">${s.label}</div><div class="fw-bold">${parseInt(s.val).toLocaleString()}</div></div></div>`);
-        $('#statsGrid').html(grid);
-        $('#computedStats').removeClass('d-none');
-        brgyModal.show();
-    });
 }
 
 function openDeleteModal(id, name){
