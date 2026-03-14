@@ -171,16 +171,28 @@
 
 @push('styles')
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.fullscreen/2.4.0/Control.FullScreen.min.css">
 <style>
     #boundaryMap .leaflet-draw-toolbar { margin-top: 10px; }
     #boundaryMap .leaflet-control-layers { font-size: .85rem; }
+    .leaflet-control-fullscreen a {
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        width: 30px !important;
+        height: 30px !important;
+        font-size: 14px;
+        color: #333 !important;
+        text-decoration: none !important;
+    }
+    .leaflet-control-fullscreen a:hover { background: #f4f4f4 !important; }
+    #boundaryMap:fullscreen          { width: 100% !important; height: 100% !important; }
+    #boundaryMap:-webkit-full-screen { width: 100% !important; height: 100% !important; }
+    #boundaryMap:-moz-full-screen    { width: 100% !important; height: 100% !important; }
 </style>
 @endpush
 
 @push('scripts')
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.fullscreen/2.4.0/Control.FullScreen.min.js"></script>
 <script>
 (function () {
     // ── Base tile layers ─────────────────────────────────────────────────────
@@ -209,9 +221,7 @@
     var map = L.map('boundaryMap', {
         center: [12.835, 120.82],
         zoom: 11,
-        layers: [street],
-        fullscreenControl: true,
-        fullscreenControlOptions: { position: 'topleft', title: 'Full Screen', titleCancel: 'Exit Full Screen' }
+        layers: [street]
     });
 
     L.control.layers(
@@ -219,6 +229,44 @@
         {},
         { position: 'topright', collapsed: false }
     ).addTo(map);
+
+    // ── Custom fullscreen control (Font Awesome icons) ────────────────────────
+    var FullscreenControl = L.Control.extend({
+        options: { position: 'topleft' },
+        onAdd: function (m) {
+            var container = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-fullscreen');
+            var btn = L.DomUtil.create('a', '', container);
+            btn.href = '#';
+            btn.title = 'Full Screen';
+            btn.innerHTML = '<i class="fas fa-expand"></i>';
+
+            L.DomEvent.on(btn, 'click', function (e) {
+                L.DomEvent.stopPropagation(e);
+                L.DomEvent.preventDefault(e);
+                var el = m.getContainer();
+                if (!document.fullscreenElement) {
+                    el.requestFullscreen && el.requestFullscreen();
+                    btn.innerHTML = '<i class="fas fa-compress"></i>';
+                    btn.title = 'Exit Full Screen';
+                } else {
+                    document.exitFullscreen && document.exitFullscreen();
+                    btn.innerHTML = '<i class="fas fa-expand"></i>';
+                    btn.title = 'Full Screen';
+                }
+            });
+
+            document.addEventListener('fullscreenchange', function () {
+                if (!document.fullscreenElement) {
+                    btn.innerHTML = '<i class="fas fa-expand"></i>';
+                    btn.title = 'Full Screen';
+                    m.invalidateSize();
+                }
+            });
+
+            return container;
+        }
+    });
+    new FullscreenControl().addTo(map);
 
     // ── Draw layer ──────────────────────────────────────────────────────────
     var drawnItems = new L.FeatureGroup();
