@@ -19,6 +19,7 @@ class StoreHouseholdRequest extends FormRequest
             'barangay_id'             => 'required|exists:barangays,id',
             'sex'                     => 'required|in:Male,Female',
             'age'                     => 'required|integer|min:0|max:130',
+            'birthday'                => 'nullable|date',
             'gender'                  => 'required|in:Male,Female,Other',
             'house_type'              => 'nullable|string|max:100',
             'sitio_purok_zone'        => 'nullable|string|max:255',

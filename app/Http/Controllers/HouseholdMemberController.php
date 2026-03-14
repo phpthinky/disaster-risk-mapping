@@ -27,6 +27,7 @@ class HouseholdMemberController extends Controller
         $validated = $request->validate([
             'name'       => 'required|string|max:255',
             'age'        => 'required|integer|min:0|max:130',
+            'birthday'   => 'nullable|date',
             'sex'        => 'required|in:Male,Female',
             'relation'   => 'nullable|string|max:100',
             'is_pwd'     => 'boolean',

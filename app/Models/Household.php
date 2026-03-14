@@ -34,10 +34,12 @@ class Household extends Model
         'hh_id',
         'preparedness_kit',
         'educational_attainment',
+        'birthday',
     ];
 
     protected $casts = [
         'age'              => 'integer',
+        'birthday'         => 'date',
         'family_members'   => 'integer',
         'pwd_count'        => 'integer',
         'pregnant_count'   => 'integer',

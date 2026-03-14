@@ -18,10 +18,12 @@ class HouseholdMember extends Model
         'is_senior',
         'is_infant',
         'is_minor',
+        'birthday',
     ];
 
     protected $casts = [
         'age'         => 'integer',
+        'birthday'    => 'date',
         'is_pwd'      => 'boolean',
         'is_pregnant' => 'boolean',
         'is_senior'   => 'boolean',

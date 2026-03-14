@@ -65,6 +65,10 @@
                         <td>{{ $household->age }}</td>
                     </tr>
                     <tr>
+                        <td class="text-muted">Birthday</td>
+                        <td>{{ $household->birthday ? $household->birthday->format('F j, Y') : '—' }}</td>
+                    </tr>
+                    <tr>
                         <td class="text-muted">House Type</td>
                         <td>{{ $household->house_type ?? '—' }}</td>
                     </tr>
@@ -176,6 +180,7 @@
                             <tr>
                                 <th>Name</th>
                                 <th class="text-center">Age</th>
+                                <th>Birthday</th>
                                 <th>Sex</th>
                                 <th>Relation</th>
                                 <th class="text-center">PWD</th>
@@ -191,6 +196,7 @@
                             <tr id="member-row-{{ $m->id }}">
                                 <td class="fw-semibold">{{ $m->name }}</td>
                                 <td class="text-center">{{ $m->age }}</td>
+                                <td class="small">{{ $m->birthday ? $m->birthday->format('M j, Y') : '—' }}</td>
                                 <td>{{ $m->sex }}</td>
                                 <td class="small text-muted">{{ $m->relation ?? '—' }}</td>
                                 <td class="text-center">
@@ -213,7 +219,7 @@
                             </tr>
                             @empty
                             <tr id="emptyRow">
-                                <td colspan="8" class="text-center text-muted py-3">No members recorded yet.</td>
+                                <td colspan="9" class="text-center text-muted py-3">No members recorded yet.</td>
                             </tr>
                             @endforelse
                         </tbody>
@@ -237,13 +243,18 @@
             <div class="modal-body">
                 <div id="memberFormAlert" class="alert d-none"></div>
                 <div class="row g-3">
-                    <div class="col-md-8">
+                    <div class="col-12">
                         <label class="form-label">Full Name <span class="text-danger">*</span></label>
                         <input type="text" id="mName" class="form-control" placeholder="Member name">
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">Age <span class="text-danger">*</span></label>
                         <input type="number" id="mAge" class="form-control" min="0" max="130">
+                    </div>
+                    <div class="col-md-8">
+                        <label class="form-label">Birthday</label>
+                        <input type="date" id="mBirthday" class="form-control">
+                        <div class="form-text">Setting a birthday auto-calculates age. Age only fills birthday when blank.</div>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Sex <span class="text-danger">*</span></label>
@@ -307,6 +318,45 @@
 var csrfToken = document.querySelector('meta[name=csrf-token]').content;
 var householdId = {{ $household->id }};
 
+// ── Age ↔ Birthday sync (modal) ───────────────────────────────────────────────
+(function () {
+    var ageEl  = document.getElementById('mAge');
+    var bdayEl = document.getElementById('mBirthday');
+
+    function calcAgeFromDate(dateStr) {
+        var d = new Date(dateStr);
+        if (isNaN(d)) return null;
+        var today = new Date();
+        var age = today.getFullYear() - d.getFullYear();
+        if (today.getMonth() < d.getMonth() ||
+            (today.getMonth() === d.getMonth() && today.getDate() < d.getDate())) {
+            age--;
+        }
+        return Math.max(0, age);
+    }
+
+    bdayEl.addEventListener('change', function () {
+        if (!this.value) return;
+        var age = calcAgeFromDate(this.value);
+        if (age !== null) ageEl.value = age;
+    });
+
+    ageEl.addEventListener('change', function () {
+        // If birthday is already set, do not overwrite it
+        if (bdayEl.value) return;
+        var age = parseInt(this.value);
+        if (isNaN(age) || age < 0) return;
+        var year = new Date().getFullYear() - age;
+        bdayEl.value = year + '-01-01';
+    });
+
+    // Reset sync state when modal is closed
+    document.getElementById('addMemberModal').addEventListener('hidden.bs.modal', function () {
+        bdayEl.value = '';
+        ageEl.value  = '';
+    });
+})();
+
 // Add member
 document.getElementById('saveMemberBtn').addEventListener('click', function () {
     var btn = this;
@@ -314,6 +364,7 @@ document.getElementById('saveMemberBtn').addEventListener('click', function () {
 
     var name     = document.getElementById('mName').value.trim();
     var age      = document.getElementById('mAge').value;
+    var birthday = document.getElementById('mBirthday').value || null;
     var sex      = document.getElementById('mSex').value;
     var relation = document.getElementById('mRelation').value.trim();
     var is_pwd      = document.getElementById('mPwd').checked ? 1 : 0;
@@ -332,7 +383,7 @@ document.getElementById('saveMemberBtn').addEventListener('click', function () {
     fetch('/api/households/' + householdId + '/members', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
-        body: JSON.stringify({ name, age, sex, relation, is_pwd, is_pregnant, is_ip })
+        body: JSON.stringify({ name, age, birthday, sex, relation, is_pwd, is_pregnant, is_ip })
     })
     .then(r => r.json())
     .then(function (res) {
@@ -350,6 +401,7 @@ document.getElementById('saveMemberBtn').addEventListener('click', function () {
         // Clear form
         document.getElementById('mName').value = '';
         document.getElementById('mAge').value = '';
+        document.getElementById('mBirthday').value = '';
         document.getElementById('mSex').value = '';
         document.getElementById('mRelation').value = '';
         document.getElementById('mPwd').checked = false;
@@ -364,9 +416,15 @@ document.getElementById('saveMemberBtn').addEventListener('click', function () {
 
         var tr = document.createElement('tr');
         tr.id = 'member-row-' + m.id;
+        var bdayDisplay = '—';
+        if (m.birthday) {
+            var bd = new Date(m.birthday);
+            bdayDisplay = bd.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+        }
         tr.innerHTML =
             '<td class="fw-semibold">' + m.name + '</td>' +
             '<td class="text-center">' + m.age + '</td>' +
+            '<td class="small">' + bdayDisplay + '</td>' +
             '<td>' + m.sex + '</td>' +
             '<td class="small text-muted">' + (m.relation || '—') + '</td>' +
             '<td class="text-center">' + (m.is_pwd ? '<i class="fas fa-check text-danger"></i>' : '<span class="text-muted">—</span>') + '</td>' +
@@ -408,7 +466,7 @@ function deleteMember(id) {
             badge.textContent = newCount;
             if (newCount === 0) {
                 var tbody = document.getElementById('membersTbody');
-                tbody.innerHTML = '<tr id="emptyRow"><td colspan="8" class="text-center text-muted py-3">No members recorded yet.</td></tr>';
+                tbody.innerHTML = '<tr id="emptyRow"><td colspan="9" class="text-center text-muted py-3">No members recorded yet.</td></tr>';
             }
         } else {
             alert(res.msg || 'Could not remove member.');

@@ -56,11 +56,22 @@
                         </div>
                         <div class="col-6">
                             <label class="form-label fw-medium">Age <span class="text-danger">*</span></label>
-                            <input type="number" name="age" min="0" max="130"
+                            <input type="number" name="age" id="hhAge" min="0" max="130"
                                    class="form-control @error('age') is-invalid @enderror"
                                    value="{{ old('age', $household?->age) }}" required>
                             @error('age') <div class="invalid-feedback">{{ $message }}</div> @enderror
                         </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-medium">Birthday</label>
+                        <input type="date" name="birthday" id="hhBirthday"
+                               class="form-control @error('birthday') is-invalid @enderror"
+                               value="{{ old('birthday', $household?->birthday?->format('Y-m-d')) }}">
+                        <div class="form-text text-muted">
+                            Setting a birthday auto-calculates age. Changing age only fills birthday when it is blank.
+                        </div>
+                        @error('birthday') <div class="invalid-feedback">{{ $message }}</div> @enderror
                     </div>
 
                     <div class="mb-3">
@@ -230,6 +241,39 @@
         document.getElementById('lngDisplay').value = lng;
         document.getElementById('gpsStatus').className   = 'badge bg-success';
         document.getElementById('gpsStatus').textContent = 'GPS Set';
+    });
+})();
+
+// ── Age ↔ Birthday sync (household head) ─────────────────────────────────────
+(function () {
+    var ageEl  = document.getElementById('hhAge');
+    var bdayEl = document.getElementById('hhBirthday');
+
+    function calcAgeFromDate(dateStr) {
+        var d = new Date(dateStr);
+        if (isNaN(d)) return null;
+        var today = new Date();
+        var age = today.getFullYear() - d.getFullYear();
+        if (today.getMonth() < d.getMonth() ||
+            (today.getMonth() === d.getMonth() && today.getDate() < d.getDate())) {
+            age--;
+        }
+        return Math.max(0, age);
+    }
+
+    bdayEl.addEventListener('change', function () {
+        if (!this.value) return;
+        var age = calcAgeFromDate(this.value);
+        if (age !== null) ageEl.value = age;
+    });
+
+    ageEl.addEventListener('change', function () {
+        // If birthday is already set, do not overwrite it
+        if (bdayEl.value) return;
+        var age = parseInt(this.value);
+        if (isNaN(age) || age < 0) return;
+        var year = new Date().getFullYear() - age;
+        bdayEl.value = year + '-01-01';
     });
 })();
 
