@@ -34,7 +34,7 @@ This document tracks the migration of the legacy PHP application (`old-app/`) in
 | 1 | Foundation & Database | ✅ Done | Migrations, Models, Seeders, Relationships |
 | 2 | Authentication & Authorization | ✅ Done | Auth, Roles, Middleware, Policies |
 | 3 | Layout & UI Shell | ✅ Done | Master layout, Sidebar, Navbar, Blade components |
-| 4 | Barangay Management | ⬜ Pending | CRUD, GIS boundary drawing, stats |
+| 4 | Barangay Management | ✅ Done | CRUD, GIS boundary drawing, stats |
 | 5 | Household Management | ⬜ Pending | CRUD, family members, sync chain, GPS |
 | 6 | Hazard Zones | ⬜ Pending | CRUD, GeoJSON layers, risk levels |
 | 7 | Population Data | ⬜ Pending | Auto-computed view, archive trail |
@@ -88,14 +88,18 @@ This document tracks the migration of the legacy PHP application (`old-app/`) in
 
 ---
 
-### Module 4 — Barangay Management
+### Module 4 — Barangay Management ✅
 **Goal**: Full barangay CRUD with GIS boundary drawing.
 
 **Deliverables**:
-- `BarangayController` (index, show, edit, update)
-- `BarangayBoundaryController` (draw/save GeoJSON polygon)
-- Barangay list/show/edit Blade views
-- AJAX endpoints for boundary data
+- `BarangayController` — full resource CRUD + `deleteBoundary`, `boundaries`, `staffUsers` AJAX endpoints
+- `barangays/index.blade.php` — summary stat cards, searchable table, role-gated create/edit/delete
+- `barangays/show.blade.php` — profile: population breakdown, hazard zone list, evac centers, boundary mini-map
+- `barangays/edit.blade.php` — form + Leaflet Draw map; loads all other boundaries as reference overlays;
+  Shoelace/Haversine area calculation; boundary status card; clear boundary button
+- Routes: full resource + `DELETE /barangays/{id}/boundary` + `/api/barangays/boundaries` + `/api/barangays/staff-users`
+- Staff assignment logic (unassign previous, assign new) in controller
+- Boundary action logged to `barangay_boundary_logs` on every save
 
 ---
 
