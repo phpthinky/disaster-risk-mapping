@@ -171,21 +171,54 @@
 
 @push('styles')
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.fullscreen/2.4.0/Control.FullScreen.min.css">
 <style>
     #boundaryMap .leaflet-draw-toolbar { margin-top: 10px; }
+    #boundaryMap .leaflet-control-layers { font-size: .85rem; }
 </style>
 @endpush
 
 @push('scripts')
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.fullscreen/2.4.0/Control.FullScreen.min.js"></script>
 <script>
 (function () {
-    // ── Init map ────────────────────────────────────────────────────────────
-    var map = L.map('boundaryMap').setView([12.835, 120.82], 11);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 18,
-        attribution: '© OpenStreetMap contributors'
-    }).addTo(map);
+    // ── Base tile layers ─────────────────────────────────────────────────────
+    var street = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    });
+
+    var satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 19,
+        attribution: 'Tiles © Esri — Source: Esri, USGS, NOAA'
+    });
+
+    var hybrid = L.layerGroup([
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            maxZoom: 19,
+            attribution: 'Tiles © Esri'
+        }),
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+            maxZoom: 19,
+            opacity: 1
+        })
+    ]);
+
+    // ── Init map ─────────────────────────────────────────────────────────────
+    var map = L.map('boundaryMap', {
+        center: [12.835, 120.82],
+        zoom: 11,
+        layers: [street],
+        fullscreenControl: true,
+        fullscreenControlOptions: { position: 'topleft', title: 'Full Screen', titleCancel: 'Exit Full Screen' }
+    });
+
+    L.control.layers(
+        { 'Street': street, 'Satellite': satellite, 'Hybrid': hybrid },
+        {},
+        { position: 'topright', collapsed: false }
+    ).addTo(map);
 
     // ── Draw layer ──────────────────────────────────────────────────────────
     var drawnItems = new L.FeatureGroup();
