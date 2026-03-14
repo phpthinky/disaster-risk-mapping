@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Models\Household;
+use App\Observers\HouseholdObserver;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -19,6 +21,6 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        Household::observe(HouseholdObserver::class);
     }
 }
