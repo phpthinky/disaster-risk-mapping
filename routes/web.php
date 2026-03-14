@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\BarangayController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\HouseholdController;
+use App\Http\Controllers\HouseholdMemberController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
@@ -36,13 +38,26 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::delete('barangays/{barangay}/boundary', [BarangayController::class, 'deleteBoundary'])
         ->name('barangays.boundary.delete');
 
-    // ── API / AJAX endpoints ─────────────────────────────────────────────────
+    // ── Module 5: Household Management ──────────────────────────────────────
+    Route::middleware('role:admin,barangay_staff')->group(function () {
+        Route::get('households/export', [HouseholdController::class, 'export'])
+            ->name('households.export');
+        Route::resource('households', HouseholdController::class);
+    });
+
+    // ── API / AJAX: Household Members ─────────────────────────────────────
     Route::prefix('api')->name('api.')->group(function () {
         Route::get('barangays/boundaries', [BarangayController::class, 'boundaries'])
             ->name('boundaries');
         Route::get('barangays/staff-users', [BarangayController::class, 'staffUsers'])
             ->name('staff-users');
+        Route::get('households/{household}/members',  [HouseholdMemberController::class, 'index'])
+            ->name('members.index');
+        Route::post('households/{household}/members', [HouseholdMemberController::class, 'store'])
+            ->name('members.store');
+        Route::delete('household-members/{member}',  [HouseholdMemberController::class, 'destroy'])
+            ->name('members.destroy');
     });
 
-    // ── Module 5+ routes will be added here ─────────────────────────────────
+    // ── Module 6+ routes will be added here ─────────────────────────────────
 });
