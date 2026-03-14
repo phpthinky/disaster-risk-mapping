@@ -1,82 +1,182 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-
-    <!-- CSRF Token -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
-    <title>{{ config('app.name', 'Laravel') }}</title>
+    <title>@yield('title', 'Dashboard') — Sablayan Risk Assessment</title>
 
-    <!-- Fonts -->
-    <link rel="dns-prefetch" href="//fonts.bunny.net">
-    <link href="https://fonts.bunny.net/css?family=Nunito" rel="stylesheet">
+    {{-- Bootstrap 5 --}}
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 
-    <!-- Scripts -->
+    {{-- Font Awesome 6 --}}
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+    {{-- Leaflet Maps --}}
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+    {{-- Google Fonts --}}
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    {{-- Compiled app styles --}}
     <link rel="stylesheet" href="{{ mix('css/app.css') }}">
-    <script src="{{ mix('js/app.js') }}" defer></script>
 
+    {{-- Page-specific styles --}}
+    @stack('styles')
 </head>
 <body>
-    <div id="app">
-        <nav class="navbar navbar-expand-md navbar-light bg-white shadow-sm">
-            <div class="container">
-                <a class="navbar-brand" href="{{ url('/') }}">
-                    {{ config('app.name', 'Laravel') }}
-                </a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="{{ __('Toggle navigation') }}">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
 
-                <div class="collapse navbar-collapse" id="navbarSupportedContent">
-                    <!-- Left Side Of Navbar -->
-                    <ul class="navbar-nav me-auto">
+@auth
+    {{-- Top Navbar --}}
+    <x-navbar />
 
+    {{-- Sidebar --}}
+    <x-sidebar />
+
+    {{-- Mobile overlay --}}
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    {{-- Main wrapper --}}
+    <div class="main-wrapper" id="mainWrapper">
+
+        @hasSection('page-header')
+            <div class="page-header-bar px-4 pt-4 pb-0">
+                @yield('page-header')
+            </div>
+        @endif
+
+        <div class="content-wrapper">
+
+            {{-- Flash messages --}}
+            @if(session('success'))
+                <div class="alert alert-success alert-dismissible fade show mb-3" role="alert">
+                    <i class="fas fa-check-circle me-2"></i>{{ session('success') }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            @endif
+
+            @if(session('error'))
+                <div class="alert alert-danger alert-dismissible fade show mb-3" role="alert">
+                    <i class="fas fa-circle-exclamation me-2"></i>{{ session('error') }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            @endif
+
+            @if(session('warning'))
+                <div class="alert alert-warning alert-dismissible fade show mb-3" role="alert">
+                    <i class="fas fa-triangle-exclamation me-2"></i>{{ session('warning') }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            @endif
+
+            @if($errors->any())
+                <div class="alert alert-danger alert-dismissible fade show mb-3" role="alert">
+                    <i class="fas fa-circle-exclamation me-2"></i>
+                    <strong>Please fix the following errors:</strong>
+                    <ul class="mb-0 mt-1">
+                        @foreach($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
                     </ul>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            @endif
 
-                    <!-- Right Side Of Navbar -->
-                    <ul class="navbar-nav ms-auto">
-                        <!-- Authentication Links -->
-                        @guest
-                            @if (Route::has('login'))
-                                <li class="nav-item">
-                                    <a class="nav-link" href="{{ route('login') }}">{{ __('Login') }}</a>
-                                </li>
-                            @endif
+            @yield('content')
+        </div>
 
-                            @if (Route::has('register'))
-                                <li class="nav-item">
-                                    <a class="nav-link" href="{{ route('register') }}">{{ __('Register') }}</a>
-                                </li>
-                            @endif
-                        @else
-                            <li class="nav-item dropdown">
-                                <a id="navbarDropdown" class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" v-pre>
-                                    {{ Auth::user()->name }}
-                                </a>
-
-                                <div class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
-                                    <a class="dropdown-item" href="{{ route('logout') }}"
-                                       onclick="event.preventDefault();
-                                                     document.getElementById('logout-form').submit();">
-                                        {{ __('Logout') }}
-                                    </a>
-
-                                    <form id="logout-form" action="{{ route('logout') }}" method="POST" class="d-none">
-                                        @csrf
-                                    </form>
-                                </div>
-                            </li>
-                        @endguest
-                    </ul>
+        {{-- Footer --}}
+        <footer class="app-footer">
+            <div class="container-fluid">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <i class="fas fa-copyright me-1"></i>
+                        {{ date('Y') }} Sablayan MDRRMO. All rights reserved.
+                    </div>
+                    <div class="col-md-6 text-md-end">
+                        <i class="fas fa-code-branch me-1"></i> Version 3.0.0
+                    </div>
                 </div>
             </div>
-        </nav>
+        </footer>
 
-        <main class="py-4">
-            @yield('content')
-        </main>
+    </div>{{-- /.main-wrapper --}}
+
+@else
+    {{-- Guest layout (login page) --}}
+    <div class="guest-wrapper">
+        @yield('content')
     </div>
+@endauth
+
+{{-- Bootstrap 5 JS --}}
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+{{-- Leaflet JS --}}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+{{-- Chart.js --}}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+{{-- Compiled app JS --}}
+<script src="{{ mix('js/app.js') }}"></script>
+
+{{-- Sidebar toggle --}}
+@auth
+<script>
+(function () {
+    var sidebar     = document.getElementById('sidebar');
+    var mainWrapper = document.getElementById('mainWrapper');
+    var toggleBtn   = document.getElementById('sidebarToggleBtn');
+    var overlay     = document.getElementById('sidebarOverlay');
+
+    if (!sidebar) return;
+
+    // Restore persisted collapsed state on desktop
+    if (localStorage.getItem('sidebarCollapsed') === 'true' && window.innerWidth > 992) {
+        sidebar.classList.add('collapsed');
+        mainWrapper && mainWrapper.classList.add('expanded');
+    }
+
+    function toggleSidebar() {
+        if (window.innerWidth <= 992) {
+            sidebar.classList.toggle('show');
+            overlay && overlay.classList.toggle('show');
+        } else {
+            sidebar.classList.toggle('collapsed');
+            mainWrapper && mainWrapper.classList.toggle('expanded');
+            localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('collapsed'));
+        }
+    }
+
+    toggleBtn && toggleBtn.addEventListener('click', function (e) {
+        e.preventDefault();
+        toggleSidebar();
+    });
+
+    overlay && overlay.addEventListener('click', function () {
+        sidebar.classList.remove('show');
+        overlay.classList.remove('show');
+    });
+
+    window.addEventListener('resize', function () {
+        if (window.innerWidth > 992) {
+            sidebar.classList.remove('show');
+            overlay && overlay.classList.remove('show');
+        }
+    });
+
+    // Bootstrap tooltips
+    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function (el) {
+        new bootstrap.Tooltip(el);
+    });
+})();
+</script>
+@endauth
+
+{{-- Page-specific scripts --}}
+@stack('scripts')
+
 </body>
 </html>

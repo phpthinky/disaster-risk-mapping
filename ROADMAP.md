@@ -32,8 +32,8 @@ This document tracks the migration of the legacy PHP application (`old-app/`) in
 | # | Module | Status | Description |
 |---|--------|--------|-------------|
 | 1 | Foundation & Database | ✅ Done | Migrations, Models, Seeders, Relationships |
-| 2 | Authentication & Authorization | ⬜ Pending | Auth, Roles, Middleware, Policies |
-| 3 | Layout & UI Shell | ⬜ Pending | Master layout, Sidebar, Navbar, Blade components |
+| 2 | Authentication & Authorization | ✅ Done | Auth, Roles, Middleware, Policies |
+| 3 | Layout & UI Shell | ✅ Done | Master layout, Sidebar, Navbar, Blade components |
 | 4 | Barangay Management | ⬜ Pending | CRUD, GIS boundary drawing, stats |
 | 5 | Household Management | ⬜ Pending | CRUD, family members, sync chain, GPS |
 | 6 | Hazard Zones | ⬜ Pending | CRUD, GeoJSON layers, risk levels |
@@ -73,14 +73,18 @@ This document tracks the migration of the legacy PHP application (`old-app/`) in
 
 ---
 
-### Module 3 — Layout & UI Shell
+### Module 3 — Layout & UI Shell ✅
 **Goal**: Create a consistent, responsive layout matching the old-app's visual design.
 
 **Deliverables**:
-- `layouts/app.blade.php` master layout
-- Sidebar Blade component (role-aware menu items)
-- Navbar Blade component
-- Leaflet + Chart.js + FA asset loading via Vite
+- `layouts/app.blade.php` — full shell: navbar + sidebar + flash messages + footer + `@stack('scripts')`
+- `components/sidebar.blade.php` — collapsible dark sidebar with role-aware menu (3 sections, 12 items)
+- `components/navbar.blade.php` — dark top navbar, user avatar dropdown, active-alerts badge
+- `resources/sass/app.scss` — CSS variables, sidebar styles, stat-card styles, guest-wrapper, responsive rules
+- Guest layout (login page) uses dark gradient background via `guest-wrapper`
+- `login.blade.php` updated: icon branding, input-group fields, dark card
+- Dashboard stubs updated to use `@section('page-header')` + breadcrumb pattern
+- Bootstrap 5, Font Awesome 6, Leaflet, Chart.js loaded via CDN in master layout
 
 ---
 
@@ -280,3 +284,5 @@ resources/views/
 |------|--------|--------|
 | 2026-03-14 | Roadmap | Created ROADMAP.md and module description files |
 | 2026-03-14 | Module 1 | Migrations, Models, SyncService, Seeder |
+| 2026-03-14 | Module 2 | Auth, CheckRole middleware, policies, username login |
+| 2026-03-14 | Module 3 | Master layout, sidebar component, navbar component, SCSS styles |
