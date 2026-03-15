@@ -110,8 +110,8 @@
     </div>
 @endauth
 
-{{-- Bootstrap 5 JS --}}
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+{{-- Bootstrap 5 JS is bundled inside public/js/app.js (via Laravel Mix).
+     Do NOT load it from CDN — that causes two Bootstrap instances and breaks dropdowns. --}}
 
 {{-- Leaflet JS --}}
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
