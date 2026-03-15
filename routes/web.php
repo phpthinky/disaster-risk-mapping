@@ -11,6 +11,7 @@ use App\Http\Controllers\HouseholdMemberController;
 use App\Http\Controllers\IncidentReportController;
 use App\Http\Controllers\MapController;
 use App\Http\Controllers\PopulationDataController;
+use App\Http\Controllers\ReportController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
@@ -120,4 +121,32 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->except(['create', 'edit', 'show']);
     Route::patch('announcements/{announcement}/toggle', [AnnouncementController::class, 'toggle'])
         ->name('announcements.toggle');
+
+    // ── Module 13: Reports & Exports ─────────────────────────────────────────
+    Route::prefix('reports')->name('reports.')->group(function () {
+        // Hub
+        Route::get('/',           [ReportController::class, 'index'])      ->name('index');
+
+        // Tabular previews
+        Route::get('/population', [ReportController::class, 'population']) ->name('population');
+        Route::get('/risk',       [ReportController::class, 'risk'])       ->name('risk');
+        Route::get('/households', [ReportController::class, 'households']) ->name('households');
+        Route::get('/incidents',  [ReportController::class, 'incidents'])  ->name('incidents');
+
+        // Downloads
+        Route::get('/{type}/excel', [ReportController::class, 'exportExcel']) ->name('excel');
+        Route::get('/{type}/pdf',   [ReportController::class, 'exportPdf'])   ->name('pdf');
+
+        // Graphical hub + chart views
+        Route::get('/graphical',                        [ReportController::class, 'graphical'])                  ->name('graphical');
+        Route::get('/graphical/population',             [ReportController::class, 'graphicalPopulation'])        ->name('graphical.population');
+        Route::get('/graphical/population/data',        [ReportController::class, 'graphicalPopulationData'])    ->name('graphical.population.data');
+        Route::get('/graphical/vulnerability',          [ReportController::class, 'graphicalVulnerability'])     ->name('graphical.vulnerability');
+        Route::get('/graphical/vulnerability/data',     [ReportController::class, 'graphicalVulnerabilityData']) ->name('graphical.vulnerability.data');
+        Route::get('/graphical/incidents',              [ReportController::class, 'graphicalIncidents'])         ->name('graphical.incidents');
+        Route::get('/graphical/incidents/data',         [ReportController::class, 'graphicalIncidentsData'])     ->name('graphical.incidents.data');
+        Route::get('/graphical/households',             [ReportController::class, 'graphicalHouseholds'])        ->name('graphical.households');
+        Route::get('/graphical/households/data',        [ReportController::class, 'graphicalHouseholdsData'])    ->name('graphical.households.data');
+        Route::get('/graphical/hazards',                [ReportController::class, 'graphicalHazards'])           ->name('graphical.hazards');
+    });
 });

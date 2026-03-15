@@ -1,115 +1,144 @@
 # Module 13 — Reports & Exports
 
-**Status**: Draft / Awaiting Approval
+**Status**: Implemented
 **Depends on**: Modules 1-12 (all data models, sync chain, dashboards)
 
 ---
 
 ## Goal
 
-Provide a dedicated **Reports** section where all three roles can preview, filter,
-and download four types of structured reports in **Excel (.xlsx)** and **PDF**
-formats. Reports are role-scoped: barangay staff see only their barangay's data;
-admin and division chief see the full municipality.
+Provide a dedicated **Reports** section with two sub-sections:
+
+1. **Tabular Reports** — filter, preview, and download data in Excel (.xlsx) and PDF formats, role-scoped.
+2. **Graphical Reports** — interactive Chart.js charts with year-by-year (5-year comparison) and month-by-month (1-year breakdown) filtering, updated via AJAX without page reload.
 
 ---
 
-## Packages Required
+## Packages
 
 | Package | Version | Purpose |
 |---------|---------|---------|
-| `maatwebsite/laravel-excel` | `^3.1` | Excel export (`.xlsx`) |
-| `barryvdh/laravel-dompdf` | `^3.0` | Server-side PDF generation |
-
-Both will be installed via `composer require` during implementation.
-`HouseholdExport.php` already exists and uses the Excel package — it will be
-kept and reused.
+| `rap2hpoutre/fast-excel` | `^5.6` | Excel export using collections — Laravel 11 compatible |
+| `barryvdh/laravel-dompdf` | `^3.1` | Server-side PDF generation |
 
 ---
 
-## Report Types
+## Tabular Report Types
 
 ### 1. Population Summary
-A full breakdown of every barangay's population figures.
+Full population breakdown per barangay from live `barangays` fields.
 
-| Column | Source |
-|--------|--------|
-| Barangay | `barangays.name` |
-| Total Population | `barangays.population` |
-| Households | `barangays.household_count` |
-| PWD | `barangays.pwd_count` |
-| Senior (60+) | `barangays.senior_count` |
-| Infant (0–2) | `barangays.infant_count` |
-| Pregnant | `barangays.pregnant_count` |
-| IP | `barangays.ip_count` |
-| At-Risk | `barangays.at_risk_count` |
-
-Filters: none (always all 22 barangays for admin/division; locked to own for barangay staff).
-Exports: Excel, PDF.
-
----
+Filters: none (role-scoped automatically).
+Exports: Excel, PDF (landscape A4).
 
 ### 2. Barangay Risk Analysis
-A risk-oriented report showing hazard exposure per barangay.
+Hazard zones grouped by barangay → hazard type → risk level.
 
-| Column | Source |
-|--------|--------|
-| Barangay | `barangays.name` |
-| Hazard Type | `hazard_types.name` |
-| Risk Level | `hazard_zones.risk_level` |
-| Zone Name | `hazard_zones.name` |
-| Area (km²) | `hazard_zones.area_km2` |
-| Affected Population | `hazard_zones.affected_population` |
-| At-Risk Population | `barangays.at_risk_count` |
-
-Grouped by barangay → hazard type → risk level.
-Filters: barangay (select), hazard type (select), risk level (select).
-Exports: Excel, PDF.
-
----
+Filters: barangay, hazard type, risk level.
+Exports: Excel, PDF (landscape A4).
 
 ### 3. Household Data Export
-Full household roster with family demographics. Reuses `HouseholdExport`.
+Full household roster. Excel only (too wide for PDF).
 
-Filters: barangay (select), IP/non-IP (select), has GPS coordinates (toggle).
-Export: Excel only (already structured; no PDF for large tabular data).
-
----
+Filters: barangay, IP/non-IP, has GPS.
+Export: Excel only.
 
 ### 4. Incident Summary
-All incident reports with their affected area breakdown.
+Incident reports with affected area aggregates.
 
-| Column | Source |
-|--------|--------|
-| Incident Title | `incident_reports.title` |
-| Hazard Type | `hazard_types.name` |
-| Status | `incident_reports.status` |
-| Date | `incident_reports.incident_date` |
-| Affected Barangays | `affected_areas` (count) |
-| Affected Households | `affected_areas.affected_households` (sum) |
-| Affected Population | `affected_areas.affected_population` (sum) |
-
-Filters: status (select), date range (from/to), hazard type (select).
-Exports: Excel, PDF.
+Filters: status, date range (from/to), hazard type.
+Exports: Excel, PDF (landscape A4).
 
 ---
 
-## Controller
+## Graphical Report Types
 
-**`app/Http/Controllers/ReportController.php`**
+All charts use **Chart.js 4** loaded from CDN. Each chart page has an AJAX-powered
+control bar at the top. The page loads with default data; changing any filter
+sends a `fetch()` request to the JSON endpoint and calls `chart.data = ...; chart.update()`.
+
+### Chart 1 — Population Trend (Annual only)
+- **Chart type**: Line chart
+- **X-axis**: Barangay names
+- **Series**: One line per selected year (up to 5)
+- **Mode**: Annual only (population data is annual)
+- **Filters**: Year checkboxes (up to 5 years), Barangay selector
+- **Data source**: `population_data.total_population` grouped by `YEAR(data_date)`
+
+### Chart 2 — Vulnerability Overview (Annual only)
+- **Chart type**: Grouped bar chart
+- **X-axis**: Selected years
+- **Series**: PWD, Seniors (Elderly), Children, At-Risk, IP — one bar group per year
+- **Mode**: Annual only
+- **Filters**: Year checkboxes (up to 5), Barangay selector
+- **Data source**: `population_data` aggregated by `YEAR(data_date)`
+
+### Chart 3 — Incident Frequency (Annual + Monthly)
+- **Chart type**: Stacked bar chart
+- **Annual mode**: X = selected years, series = hazard types
+- **Monthly mode**: X = Jan–Dec, series = hazard types, for one selected year
+- **Filters (annual)**: Year checkboxes (up to 5)
+- **Filters (monthly)**: Year selector (single)
+- **Data source**: `incident_reports.incident_date`
+
+### Chart 4 — Household Registrations (Annual + Monthly)
+- **Chart type**: Bar chart
+- **Annual mode**: X = selected years, Y = households registered per year
+- **Monthly mode**: X = Jan–Dec, Y = households registered per month
+- **Filters**: Mode toggle, year checkboxes or single year selector, Barangay
+- **Data source**: `households.created_at`
+
+### Chart 5 — Hazard Exposure (Static snapshot)
+- **Chart type**: Doughnut (risk level distribution) + horizontal bar (top barangays by hazard area)
+- **No time dimension** — always shows current snapshot
+- **No AJAX** — rendered server-side on page load
+- **Data source**: `hazard_zones`
+
+---
+
+## Interactive Filter Control Bar
 
 ```
-index()          → report menu page
-population()     → web preview + download links
-risk()           → web preview + download links
-households()     → web preview + download links
-incidents()      → web preview + download links
-exportExcel($type, Request)  → returns Excel download
-exportPdf($type, Request)    → returns PDF download (inline or attachment)
+┌─────────────────────────────────────────────────────────────────────┐
+│ [View: Annual ▼]  [2021✓] [2022✓] [2023✓] [2024✓] [2025✓]  [Barangay: All ▼] │
+└─────────────────────────────────────────────────────────────────────┘
+
+When mode = Monthly:
+┌─────────────────────────────────────────────────────────────────────┐
+│ [View: Monthly ▼]  [Year: 2025 ▼]  [Barangay: All ▼]              │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
-Private helper `applyRoleScope(Builder $query): Builder` enforces barangay_staff
-isolation — no duplicating this logic per method.
+Switching mode/filters triggers `fetch()` → JSON endpoint → `chart.update()`.
+
+---
+
+## Controller: `app/Http/Controllers/ReportController.php`
+
+```
+index()                           → reports hub
+population(Request)               → tabular view
+risk(Request)                     → tabular view with filters
+households(Request)               → tabular view with filters + pagination
+incidents(Request)                → tabular view with filters + pagination
+exportExcel(string $type, Request)→ FastExcel download
+exportPdf(string $type, Request)  → DomPDF download
+
+graphical()                       → graphical hub
+graphicalPopulation()             → chart view
+graphicalPopulationData(Request)  → JSON for AJAX
+graphicalVulnerability()          → chart view
+graphicalVulnerabilityData(Request) → JSON for AJAX
+graphicalIncidents()              → chart view
+graphicalIncidentsData(Request)   → JSON for AJAX
+graphicalHouseholds()             → chart view
+graphicalHouseholdsData(Request)  → JSON for AJAX
+graphicalHazards()                → static chart view (no AJAX)
+
+private applyBarangayScope(Builder, string $col)
+private staffBarangayId(): ?int
+private scopedBarangays(): Collection
+```
 
 ---
 
@@ -117,92 +146,69 @@ isolation — no duplicating this logic per method.
 
 ```php
 Route::prefix('reports')->name('reports.')->group(function () {
-    Route::get('/',                      [ReportController::class, 'index'])       ->name('index');
-    Route::get('/population',            [ReportController::class, 'population'])  ->name('population');
-    Route::get('/risk',                  [ReportController::class, 'risk'])        ->name('risk');
-    Route::get('/households',            [ReportController::class, 'households'])  ->name('households');
-    Route::get('/incidents',             [ReportController::class, 'incidents'])   ->name('incidents');
-    Route::get('/{type}/excel',          [ReportController::class, 'exportExcel']) ->name('excel');
-    Route::get('/{type}/pdf',            [ReportController::class, 'exportPdf'])   ->name('pdf');
+    Route::get('/',                          'index')             → reports.index
+    Route::get('/population',                'population')        → reports.population
+    Route::get('/risk',                      'risk')              → reports.risk
+    Route::get('/households',                'households')        → reports.households
+    Route::get('/incidents',                 'incidents')         → reports.incidents
+    Route::get('/{type}/excel',              'exportExcel')       → reports.excel
+    Route::get('/{type}/pdf',                'exportPdf')         → reports.pdf
+
+    Route::get('/graphical',                 'graphical')         → reports.graphical
+    Route::get('/graphical/population',      'graphicalPopulation')     → reports.graphical.population
+    Route::get('/graphical/population/data', 'graphicalPopulationData') → reports.graphical.population.data
+    Route::get('/graphical/vulnerability',   'graphicalVulnerability')  → reports.graphical.vulnerability
+    Route::get('/graphical/vulnerability/data', 'graphicalVulnerabilityData') → ...
+    Route::get('/graphical/incidents',       'graphicalIncidents')      → reports.graphical.incidents
+    Route::get('/graphical/incidents/data',  'graphicalIncidentsData')  → ...
+    Route::get('/graphical/households',      'graphicalHouseholds')     → reports.graphical.households
+    Route::get('/graphical/households/data', 'graphicalHouseholdsData') → ...
+    Route::get('/graphical/hazards',         'graphicalHazards')        → reports.graphical.hazards
 });
 ```
-
-All routes sit inside the existing `auth` + `active` middleware group.
-Admin and Division Chief can access all four; Barangay Staff can access all four
-but data is scoped to their barangay.
-
----
-
-## Exports (app/Exports/)
-
-| File | Report | Concerns |
-|------|--------|----------|
-| `HouseholdExport.php` | Households | already exists — add GPS filter |
-| `PopulationExport.php` | Population Summary | `FromCollection`, `WithHeadings`, `WithStyles`, `WithTitle` |
-| `RiskAnalysisExport.php` | Risk Analysis | `FromCollection`, `WithHeadings`, `WithStyles`, `WithGrouping` |
-| `IncidentSummaryExport.php` | Incident Summary | `FromQuery`, `WithHeadings`, `WithMapping`, `WithStyles` |
 
 ---
 
 ## Views
 
 ```
-resources/views/reports/
-├── index.blade.php          ← 4 report cards with description + download buttons
-├── population.blade.php     ← Bootstrap table preview, Excel/PDF buttons
-├── risk.blade.php           ← Grouped table by barangay, filter sidebar
-├── households.blade.php     ← Table preview + filters, Excel only
-├── incidents.blade.php      ← Table preview + filters, Excel/PDF buttons
-└── pdf/
-    ├── population.blade.php ← Clean print layout, no navbar/sidebar
-    ├── risk.blade.php       ← Clean print layout with risk-level colour bands
-    └── incidents.blade.php  ← Clean print layout
-```
-
-PDF templates use an isolated layout (`layouts/pdf.blade.php`) — no sidebar,
-no navbar, just a logo header, report title, generated-at timestamp, and a clean
-Bootstrap table.
-
----
-
-## Sidebar Integration
-
-Add a **Reports** nav item in `components/sidebar.blade.php` (all roles):
-
-```
-Reports (fas fa-file-chart-column)
-  → /reports
+resources/views/
+├── layouts/
+│   └── pdf.blade.php               ← isolated PDF layout (no navbar/sidebar)
+└── reports/
+    ├── index.blade.php             ← hub: 2 cards (Tabular, Graphical)
+    ├── population.blade.php        ← table + Excel/PDF buttons
+    ├── risk.blade.php              ← grouped table + filters + Excel/PDF buttons
+    ├── households.blade.php        ← paginated table + filters + Excel button
+    ├── incidents.blade.php         ← paginated table + filters + Excel/PDF buttons
+    ├── graphical/
+    │   ├── index.blade.php         ← 5 chart cards linking to each chart
+    │   ├── population.blade.php    ← line chart, annual, year checkboxes
+    │   ├── vulnerability.blade.php ← grouped bar, annual, year checkboxes
+    │   ├── incidents.blade.php     ← stacked bar, annual+monthly toggle
+    │   ├── households.blade.php    ← bar, annual+monthly toggle
+    │   └── hazards.blade.php       ← doughnut + horizontal bar, static
+    └── pdf/
+        ├── population.blade.php    ← print-ready, no sidebar
+        ├── risk.blade.php          ← print-ready with risk colour bands
+        └── incidents.blade.php     ← print-ready
 ```
 
 ---
 
-## Scope Rules Summary
+## Scope Rules
 
-| Role | Population | Risk | Households | Incidents |
-|------|-----------|------|-----------|-----------|
-| Admin | All 22 barangays | All | All | All |
-| Division Chief | All 22 (read-only) | All | All | All |
-| Barangay Staff | Own barangay only | Own barangay only | Own only | Incidents affecting own barangay |
+| Role | Population | Risk | Households | Incidents | Charts |
+|------|-----------|------|-----------|-----------|--------|
+| Admin | All 22 barangays | All | All | All | All |
+| Division Chief | All 22 | All | All | All | All |
+| Barangay Staff | Own barangay | Own | Own | Incidents affecting own | Own barangay |
 
 ---
 
-## Out of Scope for This Module
+## Out of Scope
 
 - Scheduled / automated report delivery (email)
 - Custom report builder / ad-hoc queries
 - Charts inside PDF (DomPDF does not render Canvas)
 - Any data entry or modification
-
----
-
-## Open Questions Before Implementation
-
-1. **PDF orientation** — landscape suits wide tables better; portrait is more
-   standard. Preference?
-2. **Company header on PDF** — should it include the municipality logo/seal or
-   just text? (Logo would need an asset path.)
-3. **Risk Analysis grouping** — rows per hazard zone (detailed) or one row per
-   barangay + hazard type (aggregated)?  Aggregated is shorter; detailed gives
-   full audit trail.
-4. **Household PDF** — given potentially thousands of rows, we agreed to Excel
-   only. Confirm this is acceptable or if a paginated PDF is needed too.

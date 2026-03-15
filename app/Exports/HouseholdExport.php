@@ -3,17 +3,13 @@
 namespace App\Exports;
 
 use App\Models\Household;
-use Maatwebsite\Excel\Concerns\FromQuery;
-use Maatwebsite\Excel\Concerns\WithHeadings;
-use Maatwebsite\Excel\Concerns\WithMapping;
-use Maatwebsite\Excel\Concerns\WithStyles;
-use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
+use Rap2hpoutre\FastExcel\FastExcel;
 
-class HouseholdExport implements FromQuery, WithHeadings, WithMapping, WithStyles
+class HouseholdExport
 {
     public function __construct(private ?int $barangayId = null) {}
 
-    public function query()
+    public function download(string $filename = 'households.xlsx')
     {
         $query = Household::with('barangay')->orderBy('barangay_id')->orderBy('household_head');
 
@@ -21,51 +17,30 @@ class HouseholdExport implements FromQuery, WithHeadings, WithMapping, WithStyle
             $query->where('barangay_id', $this->barangayId);
         }
 
-        return $query;
-    }
+        $rows = $query->get()->map(fn($h) => [
+            'ID'                     => $h->id,
+            'Barangay'               => $h->barangay->name ?? '—',
+            'HH ID'                  => $h->hh_id ?? '—',
+            'Household Head'         => $h->household_head,
+            'Sex'                    => $h->sex,
+            'Age'                    => $h->age,
+            'Gender'                 => $h->gender,
+            'Zone / Sitio'           => $h->sitio_purok_zone ?? '—',
+            'IP / Non-IP'            => $h->ip_non_ip ?? '—',
+            'House Type'             => $h->house_type ?? '—',
+            'Family Members'         => $h->family_members,
+            'PWD'                    => $h->pwd_count,
+            'Seniors (60+)'          => $h->senior_count,
+            'Children'               => ($h->minor_count + $h->child_count),
+            'Infants (0-2)'          => $h->infant_count,
+            'Pregnant'               => $h->pregnant_count,
+            'Preparedness Kit'       => $h->preparedness_kit ? 'Yes' : 'No',
+            'Educational Attainment' => $h->educational_attainment ?? '—',
+            'Latitude'               => $h->latitude,
+            'Longitude'              => $h->longitude,
+            'Created At'             => $h->created_at?->format('Y-m-d H:i'),
+        ]);
 
-    public function headings(): array
-    {
-        return [
-            'ID', 'Barangay', 'HH ID', 'Household Head', 'Sex', 'Age',
-            'Gender', 'Zone / Sitio', 'IP / Non-IP', 'House Type',
-            'Family Members', 'PWD', 'Seniors (60+)', 'Children',
-            'Infants (0-2)', 'Pregnant', 'Preparedness Kit',
-            'Educational Attainment', 'Latitude', 'Longitude', 'Created At',
-        ];
-    }
-
-    public function map($household): array
-    {
-        return [
-            $household->id,
-            $household->barangay->name ?? '—',
-            $household->hh_id ?? '—',
-            $household->household_head,
-            $household->sex,
-            $household->age,
-            $household->gender,
-            $household->sitio_purok_zone ?? '—',
-            $household->ip_non_ip ?? '—',
-            $household->house_type ?? '—',
-            $household->family_members,
-            $household->pwd_count,
-            $household->senior_count,
-            ($household->minor_count + $household->child_count),
-            $household->infant_count,
-            $household->pregnant_count,
-            $household->preparedness_kit ? 'Yes' : 'No',
-            $household->educational_attainment ?? '—',
-            $household->latitude,
-            $household->longitude,
-            $household->created_at?->format('Y-m-d H:i'),
-        ];
-    }
-
-    public function styles(Worksheet $sheet): array
-    {
-        return [
-            1 => ['font' => ['bold' => true]],
-        ];
+        return (new FastExcel($rows))->download($filename);
     }
 }
