@@ -36,7 +36,7 @@ This document tracks the migration of the legacy PHP application (`old-app/`) in
 | 3 | Layout & UI Shell | ✅ Done | Master layout, Sidebar, Navbar, Blade components |
 | 4 | Barangay Management | ✅ Done | CRUD, GIS boundary drawing, stats |
 | 5 | Household Management | ✅ Done | CRUD, family members, sync chain, GPS |
-| 6 | Hazard Zones | ⬜ Pending | CRUD, GeoJSON layers, risk levels |
+| 6 | Hazard Zones | ✅ Done | CRUD, GeoJSON layers, risk levels |
 | 7 | Population Data | ⬜ Pending | Auto-computed view, archive trail |
 | 8 | Incident Reports | ⬜ Pending | Polygon drawing, affected area computation |
 | 9 | Map View | ⬜ Pending | Leaflet master map, all GIS layers |
@@ -292,3 +292,4 @@ resources/views/
 | 2026-03-14 | Module 3 | Master layout, sidebar component, navbar component, SCSS styles |
 | 2026-03-14 | Module 4 | BarangayController, index/show/edit views, Leaflet Draw, AJAX boundary endpoints |
 | 2026-03-14 | Module 5 | HouseholdController, HouseholdMemberController, views, GPS picker, Excel export |
+| 2026-03-15 | Module 6 | HazardZoneController, CRUD views, Leaflet polygon draw, GeoJSON API |

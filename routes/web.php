@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\BarangayController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\HazardZoneController;
 use App\Http\Controllers\HouseholdController;
 use App\Http\Controllers\HouseholdMemberController;
 use Illuminate\Support\Facades\Auth;
@@ -59,5 +60,12 @@ Route::middleware(['auth', 'active'])->group(function () {
             ->name('members.destroy');
     });
 
-    // ── Module 6+ routes will be added here ─────────────────────────────────
+    // ── Module 6: Hazard Zones ───────────────────────────────────────────────
+    Route::resource('hazards', HazardZoneController::class);
+    Route::prefix('api')->name('api.')->group(function () {
+        Route::get('hazard-zones/geojson', [HazardZoneController::class, 'geojson'])
+            ->name('hazards.geojson');
+    });
+
+    // ── Module 7+ routes will be added here ─────────────────────────────────
 });
