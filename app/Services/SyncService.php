@@ -139,7 +139,8 @@ class SyncService
     }
 
     /**
-     * Recompute barangay aggregate counts from all its households.
+     * Recompute barangay aggregate counts from all its households,
+     * including at_risk_count (people whose GPS falls inside any susceptible hazard zone).
      */
     public static function syncBarangay(int $barangayId): void
     {
@@ -152,21 +153,80 @@ class SyncService
                 COALESCE(SUM(minor_count) + SUM(child_count), 0) AS children_count,
                 COALESCE(SUM(infant_count), 0)    AS infant_count,
                 COALESCE(SUM(pregnant_count), 0)  AS pregnant_count,
-                COALESCE(SUM(ip_count), 0)                AS ip_count
+                COALESCE(SUM(ip_count), 0)        AS ip_count
             FROM households
             WHERE barangay_id = ?
         ", [$barangayId]);
 
+        $atRiskCount = static::computeAtRisk($barangayId);
+
         Barangay::where('id', $barangayId)->update([
-            'population'     => $row->total_population,
-            'household_count'=> $row->household_count,
-            'pwd_count'      => $row->pwd_count,
-            'senior_count'   => $row->senior_count,
-            'children_count' => $row->children_count,
-            'infant_count'   => $row->infant_count,
-            'pregnant_count' => $row->pregnant_count,
-            'ip_count'       => $row->ip_count,
+            'population'      => $row->total_population,
+            'household_count' => $row->household_count,
+            'pwd_count'       => $row->pwd_count,
+            'senior_count'    => $row->senior_count,
+            'children_count'  => $row->children_count,
+            'infant_count'    => $row->infant_count,
+            'pregnant_count'  => $row->pregnant_count,
+            'ip_count'        => $row->ip_count,
+            'at_risk_count'   => $atRiskCount,
         ]);
+    }
+
+    /**
+     * Count how many people (by family_members) in the given barangay live
+     * inside at least one susceptible hazard zone.
+     *
+     * "Not Susceptible" zones are excluded — they carry no risk.
+     * A household is counted only once even if it overlaps multiple zones.
+     */
+    public static function computeAtRisk(int $barangayId): int
+    {
+        // All susceptible hazard zones with valid GeoJSON (any barangay — zones can cross boundaries)
+        $zones = HazardZone::whereNotNull('coordinates')
+            ->where('coordinates', '!=', '')
+            ->where('risk_level', '!=', 'Not Susceptible')
+            ->get(['coordinates']);
+
+        if ($zones->isEmpty()) {
+            return 0;
+        }
+
+        // Parse each zone's outer ring once
+        $rings = [];
+        foreach ($zones as $zone) {
+            $ring = GeoService::outerRing($zone->coordinates);
+            if ($ring !== null) {
+                $rings[] = $ring;
+            }
+        }
+
+        if (empty($rings)) {
+            return 0;
+        }
+
+        // Households with valid GPS for this barangay
+        $households = Household::where('barangay_id', $barangayId)
+            ->whereNotNull('latitude')
+            ->whereNotNull('longitude')
+            ->where('latitude',  '!=', 0)
+            ->where('longitude', '!=', 0)
+            ->get(['latitude', 'longitude', 'family_members']);
+
+        $atRisk = 0;
+        foreach ($households as $hh) {
+            $lat = (float) $hh->latitude;
+            $lng = (float) $hh->longitude;
+
+            foreach ($rings as $ring) {
+                if (GeoService::pointInPolygon($lat, $lng, $ring)) {
+                    $atRisk += (int) ($hh->family_members ?? 1);
+                    break; // count each household only once across all zones
+                }
+            }
+        }
+
+        return $atRisk;
     }
 
     /**
@@ -187,7 +247,7 @@ class SyncService
             ->first();
 
         if ($existing) {
-            // Archive old record
+            // Archive old record (captures at_risk_count at that point in time)
             PopulationDataArchive::create([
                 'original_id'       => $existing->id,
                 'barangay_id'       => $existing->barangay_id,
@@ -197,6 +257,7 @@ class SyncService
                 'children_count'    => $existing->children_count ?? 0,
                 'pwd_count'         => $existing->pwd_count ?? 0,
                 'ips_count'         => $existing->ips_count ?? 0,
+                'at_risk_count'     => $existing->at_risk_count ?? 0,
                 'solo_parent_count' => $existing->solo_parent_count ?? 0,
                 'widow_count'       => $existing->widow_count ?? 0,
                 'data_date'         => $existing->data_date ?? now()->toDateString(),
@@ -212,6 +273,7 @@ class SyncService
                 'children_count'   => $barangay->children_count,
                 'pwd_count'        => $barangay->pwd_count,
                 'ips_count'        => $barangay->ip_count,
+                'at_risk_count'    => $barangay->at_risk_count,
                 'data_date'        => now()->toDateString(),
                 'entered_by'       => 'system_sync',
             ]);
@@ -224,6 +286,7 @@ class SyncService
                 'children_count'   => $barangay->children_count,
                 'pwd_count'        => $barangay->pwd_count,
                 'ips_count'        => $barangay->ip_count,
+                'at_risk_count'    => $barangay->at_risk_count,
                 'data_date'        => now()->toDateString(),
                 'entered_by'       => 'system_sync',
             ]);

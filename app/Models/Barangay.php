@@ -21,6 +21,7 @@ class Barangay extends Model
         'infant_count',
         'pregnant_count',
         'ip_count',
+        'at_risk_count',
     ];
 
     protected $casts = [
@@ -32,6 +33,7 @@ class Barangay extends Model
         'infant_count'         => 'integer',
         'pregnant_count'       => 'integer',
         'ip_count'             => 'integer',
+        'at_risk_count'        => 'integer',
         'area_km2'             => 'float',
         'calculated_area_km2'  => 'float',
     ];

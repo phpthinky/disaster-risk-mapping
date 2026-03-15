@@ -28,8 +28,9 @@
         Population figures are computed automatically every time a household or member is saved.
         <em>Auto</em> archive entries are created on each change (continuous history).
         <em>Annual</em> snapshots are deliberate year-end records — admins can save one manually from the
-        <strong>Details &amp; History</strong> page, or they run automatically every <strong>Dec 31</strong>.
-        Click <strong>Details &amp; History</strong> on any row below to view the archive trail and trend chart.
+        <strong>Details &amp; History</strong> page.
+        The <strong class="text-danger">At Risk</strong> count shows people living inside mapped hazard zones
+        (excludes "Not Susceptible" zones) — re-computed on every household sync.
     </div>
 </div>
 
@@ -75,14 +76,21 @@
         </div>
     </div>
     <div class="col-6 col-lg-3">
-        <div class="card stat-card border-0 shadow-sm">
+        <div class="card stat-card border-0 shadow-sm border-danger border-opacity-25">
             <div class="card-body d-flex align-items-center gap-3">
-                <div class="stat-icon bg-info bg-opacity-10 text-info rounded-3 p-3">
-                    <i class="fas fa-map-marker-alt fa-lg"></i>
+                <div class="stat-icon bg-danger bg-opacity-10 text-danger rounded-3 p-3">
+                    <i class="fas fa-triangle-exclamation fa-lg"></i>
                 </div>
                 <div>
-                    <div class="fw-bold fs-4">{{ $totals['barangays'] }}</div>
-                    <div class="text-muted small">Barangays</div>
+                    <div class="fw-bold fs-4 text-danger">{{ number_format($totals['at_risk']) }}</div>
+                    <div class="text-muted small">
+                        Living in Risk Zones
+                        @if($totals['population'] > 0)
+                        <span class="text-danger fw-semibold">
+                            ({{ round($totals['at_risk'] / $totals['population'] * 100, 1) }}%)
+                        </span>
+                        @endif
+                    </div>
                 </div>
             </div>
         </div>
@@ -105,6 +113,10 @@
                         <th class="text-end">Children</th>
                         <th class="text-end">PWD</th>
                         <th class="text-end">IPs</th>
+                        <th class="text-end text-danger"
+                            title="People living inside a mapped susceptible hazard zone (High/Moderate/Low/Prone)">
+                            <i class="fas fa-triangle-exclamation me-1"></i>At Risk
+                        </th>
                         <th class="text-muted text-end small">Last Sync</th>
                         <th></th>
                     </tr>
@@ -112,9 +124,10 @@
                 <tbody>
                     @foreach($barangays as $b)
                     @php
-                        $rec     = $currentRecords[$b->id] ?? null;
-                        $prev    = $latestArchive[$b->id]  ?? null;
-                        $diff    = $rec && $prev ? ($rec->total_population - $prev->total_population) : null;
+                        $rec       = $currentRecords[$b->id] ?? null;
+                        $prev      = $latestArchive[$b->id]  ?? null;
+                        $diff      = ($prev) ? ($b->population - $prev->total_population) : null;
+                        $atRiskPct = $b->population > 0 ? round($b->at_risk_count / $b->population * 100, 1) : 0;
                     @endphp
                     <tr>
                         <td class="fw-medium">{{ $b->name }}</td>
@@ -137,12 +150,20 @@
                         <td class="text-end">{{ number_format($b->children_count) }}</td>
                         <td class="text-end">{{ number_format($b->pwd_count) }}</td>
                         <td class="text-end">{{ number_format($b->ip_count) }}</td>
+                        <td class="text-end">
+                            @if($b->at_risk_count > 0)
+                                <span class="text-danger fw-semibold">{{ number_format($b->at_risk_count) }}</span>
+                                <span class="text-muted small d-block">{{ $atRiskPct }}%</span>
+                            @else
+                                <span class="text-muted">0</span>
+                            @endif
+                        </td>
                         <td class="text-end text-muted small">
                             {{ $rec?->updated_at?->format('M j, Y') ?? '—' }}
                         </td>
                         <td class="text-end">
                             <a href="{{ route('population.show', $b) }}" class="btn btn-outline-primary btn-sm">
-                                <i class="fas fa-chart-line me-1"></i>Details & History
+                                <i class="fas fa-chart-line me-1"></i>Details &amp; History
                             </a>
                         </td>
                     </tr>
@@ -158,6 +179,7 @@
                         <td class="text-end">{{ number_format($barangays->sum('children_count')) }}</td>
                         <td class="text-end">{{ number_format($totals['pwd']) }}</td>
                         <td class="text-end">{{ number_format($barangays->sum('ip_count')) }}</td>
+                        <td class="text-end text-danger">{{ number_format($totals['at_risk']) }}</td>
                         <td colspan="2"></td>
                     </tr>
                 </tfoot>
