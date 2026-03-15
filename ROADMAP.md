@@ -43,7 +43,7 @@ This document tracks the migration of the legacy PHP application (`old-app/`) in
 | 10 | Alerts & Announcements | ⬜ Pending | CRUD, role targeting |
 | 11 | Evacuation Centers | ✅ Done | CRUD, map markers, capacity tracking |
 | 12 | Dashboards | ✅ Done | Admin, Barangay, Division Chief dashboards |
-| 13 | Reports & Exports | ⬜ Pending | PDF/Excel export, risk analysis |
+| 13 | Reports & Exports | 🔄 In Progress | PDF/Excel export, risk analysis |
 | 14 | User Management | ⬜ Pending | Admin user CRUD, profile |
 
 ---
@@ -297,3 +297,4 @@ resources/views/
 | 2026-03-15 | Module 7 | PopulationDataController, index + show views, Chart.js trend, archive trail |
 | 2026-03-15 | Module 11 | EvacuationCenterController, CRUD views, Leaflet pin picker, capacity progress bars |
 | 2026-03-15 | Module 12 | DashboardController, admin/division/barangay views, Chart.js charts, stat cards |
+| 2026-03-15 | Module 13 | Planning phase — docs/module-13-plan.md drafted, open questions raised |
