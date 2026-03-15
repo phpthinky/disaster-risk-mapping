@@ -13,6 +13,11 @@ class HouseholdObserver
      */
     public function saved(Household $household): void
     {
+        // Recompute this household's own demographic columns (senior_count,
+        // pwd_count, ip_count, etc.) from the head's fields + members BEFORE
+        // aggregating up to the barangay. Without this, changing the head's
+        // age/birthday had no effect on the barangay totals.
+        SyncService::recomputeHousehold((int) $household->id);
         SyncService::handleSync((int) $household->barangay_id);
     }
 

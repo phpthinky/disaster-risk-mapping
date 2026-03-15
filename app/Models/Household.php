@@ -31,6 +31,7 @@ class Household extends Model
         'longitude',
         'sitio_purok_zone',
         'ip_non_ip',
+        'ip_count',
         'hh_id',
         'preparedness_kit',
         'educational_attainment',
@@ -51,6 +52,7 @@ class Household extends Model
         'young_adult_count'=> 'integer',
         'adult_count'      => 'integer',
         'middle_aged_count'=> 'integer',
+        'ip_count'         => 'integer',
         'latitude'         => 'float',
         'longitude'        => 'float',
     ];

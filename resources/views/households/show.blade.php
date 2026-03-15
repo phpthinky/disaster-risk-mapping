@@ -210,10 +210,17 @@
                                 </td>
                                 @if(!auth()->user()->isDivisionChief())
                                 <td class="text-center">
-                                    <button class="btn btn-sm btn-outline-danger"
-                                            onclick="deleteMember({{ $m->id }})" title="Remove">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-secondary"
+                                                onclick="editMember({{ $m->id }}, @json($m->name), {{ $m->age }}, @json($m->birthday ? $m->birthday->format('Y-m-d') : ''), @json($m->sex), @json($m->relation ?? ''), {{ $m->is_pwd ? 'true' : 'false' }}, {{ $m->is_pregnant ? 'true' : 'false' }}, {{ $m->is_ip ? 'true' : 'false' }})"
+                                                title="Edit">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="btn btn-outline-danger"
+                                                onclick="deleteMember({{ $m->id }})" title="Remove">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
                                 </td>
                                 @endif
                             </tr>
@@ -237,7 +244,7 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title"><i class="fas fa-user-plus me-2"></i>Add Family Member</h5>
+                <h5 class="modal-title" id="memberModalTitle"><i class="fas fa-user-plus me-2"></i>Add Family Member</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
@@ -315,10 +322,11 @@
 
 @if(!auth()->user()->isDivisionChief())
 <script>
-var csrfToken = document.querySelector('meta[name=csrf-token]').content;
+var csrfToken   = document.querySelector('meta[name=csrf-token]').content;
 var householdId = {{ $household->id }};
+var editingMemberId = null; // null = add mode; integer = edit mode
 
-// ── Age ↔ Birthday sync (modal) ───────────────────────────────────────────────
+// ── Age ↔ Birthday sync ───────────────────────────────────────────────────────
 (function () {
     var ageEl  = document.getElementById('mAge');
     var bdayEl = document.getElementById('mBirthday');
@@ -329,9 +337,7 @@ var householdId = {{ $household->id }};
         var today = new Date();
         var age = today.getFullYear() - d.getFullYear();
         if (today.getMonth() < d.getMonth() ||
-            (today.getMonth() === d.getMonth() && today.getDate() < d.getDate())) {
-            age--;
-        }
+            (today.getMonth() === d.getMonth() && today.getDate() < d.getDate())) age--;
         return Math.max(0, age);
     }
 
@@ -342,24 +348,84 @@ var householdId = {{ $household->id }};
     });
 
     ageEl.addEventListener('change', function () {
-        // If birthday is already set, do not overwrite it
-        if (bdayEl.value) return;
+        if (bdayEl.value) return; // don't overwrite an existing birthday
         var age = parseInt(this.value);
         if (isNaN(age) || age < 0) return;
-        var year = new Date().getFullYear() - age;
-        bdayEl.value = year + '-01-01';
+        bdayEl.value = (new Date().getFullYear() - age) + '-01-01';
     });
 
-    // Reset sync state when modal is closed
-    document.getElementById('addMemberModal').addEventListener('hidden.bs.modal', function () {
-        bdayEl.value = '';
-        ageEl.value  = '';
-    });
+    document.getElementById('addMemberModal').addEventListener('hidden.bs.modal', resetModal);
 })();
 
-// Add member
+function resetModal() {
+    editingMemberId = null;
+    document.getElementById('memberModalTitle').innerHTML = '<i class="fas fa-user-plus me-2"></i>Add Family Member';
+    document.getElementById('saveMemberBtn').innerHTML = '<i class="fas fa-save me-1"></i> Save Member';
+    document.getElementById('mName').value     = '';
+    document.getElementById('mAge').value      = '';
+    document.getElementById('mBirthday').value = '';
+    document.getElementById('mSex').value      = '';
+    document.getElementById('mRelation').value = '';
+    document.getElementById('mPwd').checked      = false;
+    document.getElementById('mPregnant').checked = false;
+    document.getElementById('mIp').checked       = false;
+    document.getElementById('memberFormAlert').className = 'alert d-none';
+}
+
+// ── Open modal in EDIT mode ───────────────────────────────────────────────────
+function editMember(id, name, age, birthday, sex, relation, isPwd, isPregnant, isIp) {
+    editingMemberId = id;
+    document.getElementById('memberModalTitle').innerHTML = '<i class="fas fa-user-edit me-2"></i>Edit Member';
+    document.getElementById('saveMemberBtn').innerHTML    = '<i class="fas fa-save me-1"></i> Update Member';
+    document.getElementById('mName').value     = name;
+    document.getElementById('mAge').value      = age;
+    document.getElementById('mBirthday').value = birthday || '';
+    document.getElementById('mSex').value      = sex;
+    document.getElementById('mRelation').value = relation || '';
+    document.getElementById('mPwd').checked      = isPwd;
+    document.getElementById('mPregnant').checked = isPregnant;
+    document.getElementById('mIp').checked       = isIp;
+    document.getElementById('memberFormAlert').className = 'alert d-none';
+    var modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('addMemberModal'));
+    modal.show();
+}
+
+// ── Build the member row HTML (shared between add and edit) ───────────────────
+function memberRowHtml(m) {
+    var bdayDisplay = '—';
+    if (m.birthday) {
+        var bd = new Date(m.birthday + 'T00:00:00');
+        bdayDisplay = bd.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    }
+    var editArgs = [
+        m.id,
+        JSON.stringify(m.name || m.full_name),
+        m.age,
+        JSON.stringify(m.birthday || ''),
+        JSON.stringify(m.sex || m.gender),
+        JSON.stringify(m.relation || m.relationship || ''),
+        m.is_pwd    ? 'true' : 'false',
+        m.is_pregnant ? 'true' : 'false',
+        m.is_ip     ? 'true' : 'false',
+    ].join(', ');
+
+    return '<td class="fw-semibold">' + (m.name || m.full_name) + '</td>' +
+        '<td class="text-center">' + m.age + '</td>' +
+        '<td class="small">' + bdayDisplay + '</td>' +
+        '<td>' + (m.sex || m.gender) + '</td>' +
+        '<td class="small text-muted">' + (m.relation || m.relationship || '—') + '</td>' +
+        '<td class="text-center">' + (m.is_pwd ? '<i class="fas fa-check text-danger"></i>' : '<span class="text-muted">—</span>') + '</td>' +
+        '<td class="text-center">' + (m.is_pregnant ? '<i class="fas fa-check text-info"></i>' : '<span class="text-muted">—</span>') + '</td>' +
+        '<td class="text-center">' + (m.is_ip ? '<i class="fas fa-check" style="color:#7c3aed;"></i>' : '<span class="text-muted">—</span>') + '</td>' +
+        '<td class="text-center"><div class="btn-group btn-group-sm">' +
+        '<button class="btn btn-outline-secondary" onclick="editMember(' + editArgs + ')" title="Edit"><i class="fas fa-edit"></i></button>' +
+        '<button class="btn btn-outline-danger" onclick="deleteMember(' + m.id + ')" title="Remove"><i class="fas fa-trash"></i></button>' +
+        '</div></td>';
+}
+
+// ── Save (Add or Update) ──────────────────────────────────────────────────────
 document.getElementById('saveMemberBtn').addEventListener('click', function () {
-    var btn = this;
+    var btn     = this;
     var alertEl = document.getElementById('memberFormAlert');
 
     var name     = document.getElementById('mName').value.trim();
@@ -372,7 +438,7 @@ document.getElementById('saveMemberBtn').addEventListener('click', function () {
     var is_ip       = document.getElementById('mIp').checked ? 1 : 0;
 
     if (!name || !age || !sex) {
-        alertEl.className = 'alert alert-warning';
+        alertEl.className   = 'alert alert-warning';
         alertEl.textContent = 'Name, Age and Sex are required.';
         return;
     }
@@ -380,102 +446,85 @@ document.getElementById('saveMemberBtn').addEventListener('click', function () {
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving…';
 
-    fetch('/api/households/' + householdId + '/members', {
-        method: 'POST',
+    var isEdit = editingMemberId !== null;
+    var url    = isEdit
+        ? '/api/household-members/' + editingMemberId
+        : '/api/households/' + householdId + '/members';
+    var method = isEdit ? 'PUT' : 'POST';
+
+    fetch(url, {
+        method:  method,
         headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
-        body: JSON.stringify({ name, age, birthday, sex, relation, is_pwd, is_pregnant, is_ip })
+        body:    JSON.stringify({ name, age, birthday, sex, relation, is_pwd, is_pregnant, is_ip })
     })
     .then(r => r.json())
     .then(function (res) {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-save me-1"></i> Save Member';
+        btn.disabled  = false;
+        btn.innerHTML = isEdit
+            ? '<i class="fas fa-save me-1"></i> Update Member'
+            : '<i class="fas fa-save me-1"></i> Save Member';
 
         if (!res.ok) {
-            alertEl.className = 'alert alert-danger';
+            alertEl.className   = 'alert alert-danger';
             alertEl.textContent = res.message || 'Error saving member.';
             return;
         }
 
-        alertEl.className = 'alert d-none';
-
-        // Clear form
-        document.getElementById('mName').value = '';
-        document.getElementById('mAge').value = '';
-        document.getElementById('mBirthday').value = '';
-        document.getElementById('mSex').value = '';
-        document.getElementById('mRelation').value = '';
-        document.getElementById('mPwd').checked = false;
-        document.getElementById('mPregnant').checked = false;
-        document.getElementById('mIp').checked = false;
-
-        // Add row to table
-        var m = res.member;
+        var m     = res.member;
         var tbody = document.getElementById('membersTbody');
-        var emptyRow = document.getElementById('emptyRow');
-        if (emptyRow) emptyRow.remove();
 
-        var tr = document.createElement('tr');
-        tr.id = 'member-row-' + m.id;
-        var bdayDisplay = '—';
-        if (m.birthday) {
-            var bd = new Date(m.birthday);
-            bdayDisplay = bd.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+        if (isEdit) {
+            // Replace existing row
+            var existing = document.getElementById('member-row-' + m.id);
+            if (existing) existing.innerHTML = memberRowHtml(m);
+        } else {
+            // Append new row
+            var emptyRow = document.getElementById('emptyRow');
+            if (emptyRow) emptyRow.remove();
+            var tr = document.createElement('tr');
+            tr.id  = 'member-row-' + m.id;
+            tr.innerHTML = memberRowHtml(m);
+            tbody.appendChild(tr);
+            document.getElementById('memberCount').textContent =
+                parseInt(document.getElementById('memberCount').textContent) + 1;
         }
-        tr.innerHTML =
-            '<td class="fw-semibold">' + m.name + '</td>' +
-            '<td class="text-center">' + m.age + '</td>' +
-            '<td class="small">' + bdayDisplay + '</td>' +
-            '<td>' + m.sex + '</td>' +
-            '<td class="small text-muted">' + (m.relation || '—') + '</td>' +
-            '<td class="text-center">' + (m.is_pwd ? '<i class="fas fa-check text-danger"></i>' : '<span class="text-muted">—</span>') + '</td>' +
-            '<td class="text-center">' + (m.is_pregnant ? '<i class="fas fa-check text-info"></i>' : '<span class="text-muted">—</span>') + '</td>' +
-            '<td class="text-center">' + (m.is_ip ? '<i class="fas fa-check" style="color:#7c3aed;"></i>' : '<span class="text-muted">—</span>') + '</td>' +
-            '<td class="text-center"><button class="btn btn-sm btn-outline-danger" onclick="deleteMember(' + m.id + ')" title="Remove"><i class="fas fa-trash"></i></button></td>';
-        tbody.appendChild(tr);
 
-        // Update count badge
-        var badge = document.getElementById('memberCount');
-        badge.textContent = parseInt(badge.textContent) + 1;
-
-        // Close modal
-        var modalEl = document.getElementById('addMemberModal');
-        var modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
-        modal.hide();
-        // Ensure backdrop is fully removed
+        // Close modal and reset
+        bootstrap.Modal.getInstance(document.getElementById('addMemberModal')).hide();
         document.querySelectorAll('.modal-backdrop').forEach(function (el) { el.remove(); });
         document.body.classList.remove('modal-open');
         document.body.style.removeProperty('padding-right');
+        resetModal();
     })
     .catch(function () {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-save me-1"></i> Save Member';
-        alertEl.className = 'alert alert-danger';
+        btn.disabled  = false;
+        btn.innerHTML = isEdit
+            ? '<i class="fas fa-save me-1"></i> Update Member'
+            : '<i class="fas fa-save me-1"></i> Save Member';
+        alertEl.className   = 'alert alert-danger';
         alertEl.textContent = 'Network error. Please try again.';
     });
 });
 
-// Delete member
+// ── Delete ────────────────────────────────────────────────────────────────────
 function deleteMember(id) {
     if (!confirm('Remove this family member?')) return;
 
     fetch('/api/household-members/' + id, {
-        method: 'DELETE',
+        method:  'DELETE',
         headers: { 'X-CSRF-TOKEN': csrfToken }
     })
     .then(r => r.json())
     .then(function (res) {
-        if (res.ok) {
-            var row = document.getElementById('member-row-' + id);
-            if (row) row.remove();
-            var badge = document.getElementById('memberCount');
-            var newCount = Math.max(0, parseInt(badge.textContent) - 1);
-            badge.textContent = newCount;
-            if (newCount === 0) {
-                var tbody = document.getElementById('membersTbody');
-                tbody.innerHTML = '<tr id="emptyRow"><td colspan="9" class="text-center text-muted py-3">No members recorded yet.</td></tr>';
-            }
-        } else {
-            alert(res.msg || 'Could not remove member.');
+        if (!res.ok) { alert(res.msg || 'Could not remove member.'); return; }
+        var row = document.getElementById('member-row-' + id);
+        if (row) row.remove();
+        var badge    = document.getElementById('memberCount');
+        var newCount = Math.max(0, parseInt(badge.textContent) - 1);
+        badge.textContent = newCount;
+        if (newCount === 0) {
+            document.getElementById('membersTbody').innerHTML =
+                '<tr id="emptyRow"><td colspan="9" class="text-center text-muted py-3">No members recorded yet.</td></tr>';
         }
     });
 }

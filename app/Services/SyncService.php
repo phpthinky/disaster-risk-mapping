@@ -68,12 +68,14 @@ class SyncService
         $youngAdultCount= 0;   // 18-24
         $adultCount     = 0;   // 25-44
         $middleAgedCount= 0;   // 45-59
+        $ipCount        = 0;   // indigenous people (head + members with is_ip)
 
         foreach ($members as $m) {
             $age = (int) $m->age;
 
             if ($m->is_pwd) $pwdCount++;
             if ($m->is_pregnant) $pregnantCount++;
+            if ($m->is_ip) $ipCount++;
 
             if ($age <= 2) {
                 $infantCount++;
@@ -93,6 +95,11 @@ class SyncService
             } else {
                 $seniorCount++;
             }
+        }
+
+        // Count head as IP if household is classified IP
+        if ($household->ip_non_ip === 'IP') {
+            $ipCount++;
         }
 
         // Also classify the household head by age
@@ -124,6 +131,7 @@ class SyncService
                 'young_adult_count' => $youngAdultCount,
                 'adult_count'       => $adultCount,
                 'middle_aged_count' => $middleAgedCount,
+                'ip_count'          => $ipCount,
             ]);
         });
 
@@ -144,7 +152,7 @@ class SyncService
                 COALESCE(SUM(minor_count) + SUM(child_count), 0) AS children_count,
                 COALESCE(SUM(infant_count), 0)    AS infant_count,
                 COALESCE(SUM(pregnant_count), 0)  AS pregnant_count,
-                COALESCE(SUM(CASE WHEN ip_non_ip = 'IP' THEN 1 ELSE 0 END), 0) AS ip_count
+                COALESCE(SUM(ip_count), 0)                AS ip_count
             FROM households
             WHERE barangay_id = ?
         ", [$barangayId]);

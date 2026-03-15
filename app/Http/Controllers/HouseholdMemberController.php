@@ -67,6 +67,56 @@ class HouseholdMemberController extends Controller
         ]);
     }
 
+    public function update(Request $request, HouseholdMember $member)
+    {
+        $household = $member->household;
+        $this->authorizeScope($household);
+
+        $validated = $request->validate([
+            'name'        => 'required|string|max:255',
+            'age'         => 'required|integer|min:0|max:130',
+            'birthday'    => 'nullable|date',
+            'sex'         => 'required|in:Male,Female',
+            'relation'    => 'nullable|string|max:100',
+            'is_pwd'      => 'boolean',
+            'is_pregnant' => 'boolean',
+            'is_ip'       => 'boolean',
+        ]);
+
+        // Duplicate name check: same household, different member
+        $duplicate = $household->members()
+            ->whereRaw('LOWER(full_name) = ?', [strtolower($validated['name'])])
+            ->where('id', '!=', $member->id)
+            ->exists();
+
+        if ($duplicate) {
+            return response()->json([
+                'ok'      => false,
+                'message' => 'Another member named "' . $validated['name'] . '" already exists.',
+            ], 422);
+        }
+
+        $member->update([
+            'full_name'    => $validated['name'],
+            'age'          => $validated['age'],
+            'birthday'     => $validated['birthday'] ?? null,
+            'gender'       => $validated['sex'],
+            'relationship' => $validated['relation'] ?? '',
+            'is_pwd'       => $validated['is_pwd'] ?? false,
+            'is_pregnant'  => $validated['is_pregnant'] ?? false,
+            'is_ip'        => $validated['is_ip'] ?? false,
+        ]);
+
+        SyncService::recomputeHousehold($household->id);
+        SyncService::handleSync($household->barangay_id);
+
+        return response()->json([
+            'ok'     => true,
+            'member' => $member->fresh(),
+            'msg'    => 'Member updated.',
+        ]);
+    }
+
     public function destroy(HouseholdMember $member)
     {
         $household = $member->household;

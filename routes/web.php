@@ -57,6 +57,8 @@ Route::middleware(['auth', 'active'])->group(function () {
             ->name('members.index');
         Route::post('households/{household}/members', [HouseholdMemberController::class, 'store'])
             ->name('members.store');
+        Route::put('household-members/{member}',     [HouseholdMemberController::class, 'update'])
+            ->name('members.update');
         Route::delete('household-members/{member}',  [HouseholdMemberController::class, 'destroy'])
             ->name('members.destroy');
     });
