@@ -80,7 +80,7 @@
                     'title'  => 'Alerts',
                     'icon'   => 'fa-bell',
                     'route'  => 'alerts.index',
-                    'roles'  => ['admin', 'barangay_staff', 'division_chief'],
+                    'roles'  => ['admin'],
                 ],
             ],
         ],

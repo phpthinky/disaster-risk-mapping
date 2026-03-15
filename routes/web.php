@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\AlertController;
+use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\BarangayController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\HazardZoneController;
@@ -102,5 +104,16 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('evacuation-centers', [MapController::class, 'apiEvacuationCenters'])->name('evacuation-centers');
     });
 
-    // ── Module 10+ routes will be added here ────────────────────────────────
+    // ── Module 10: Alerts & Announcements ───────────────────────────────────
+    Route::resource('alerts', AlertController::class)
+        ->except(['create', 'edit', 'show'])
+        ->middleware('role:admin');
+    Route::patch('alerts/{alert}/toggle', [AlertController::class, 'toggle'])
+        ->middleware('role:admin')
+        ->name('alerts.toggle');
+
+    Route::resource('announcements', AnnouncementController::class)
+        ->except(['create', 'edit', 'show']);
+    Route::patch('announcements/{announcement}/toggle', [AnnouncementController::class, 'toggle'])
+        ->name('announcements.toggle');
 });
