@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Barangay;
 use App\Models\HazardType;
 use App\Models\HazardZone;
+use App\Services\SyncService;
 use Illuminate\Http\Request;
 
 class HazardZoneController extends Controller
@@ -72,10 +73,10 @@ class HazardZoneController extends Controller
         $validated = $this->validateZone($request);
         $this->checkScope($validated['barangay_id']);
 
-        // Auto-populate affected_population from barangay
-        $validated['affected_population'] = Barangay::find($validated['barangay_id'])->population ?? 0;
+        $zone = HazardZone::create($validated);
 
-        HazardZone::create($validated);
+        // Compute affected_population via point-in-polygon on the drawn zone
+        SyncService::syncHazardZones($zone->barangay_id);
 
         return redirect()->route('hazards.index')
             ->with('success', 'Hazard zone created successfully.');
@@ -108,7 +109,14 @@ class HazardZoneController extends Controller
         $validated = $this->validateZone($request);
         $this->checkScope($validated['barangay_id']);
 
+        $oldBarangayId = $hazard->barangay_id;
         $hazard->update($validated);
+
+        // Recompute affected_population via PIP for the (possibly new) barangay
+        SyncService::syncHazardZones($hazard->barangay_id);
+        if ($oldBarangayId !== $hazard->barangay_id) {
+            SyncService::syncHazardZones($oldBarangayId);
+        }
 
         return redirect()->route('hazards.show', $hazard)
             ->with('success', 'Hazard zone updated successfully.');

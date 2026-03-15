@@ -5,8 +5,10 @@ namespace App\Services;
 use App\Models\Barangay;
 use App\Models\Household;
 use App\Models\HouseholdMember;
+use App\Models\HazardZone;
 use App\Models\PopulationData;
 use App\Models\PopulationDataArchive;
+use App\Services\GeoService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
@@ -220,18 +222,47 @@ class SyncService
     }
 
     /**
-     * Update hazard_zones.affected_population from barangays.population
-     * for all zones linked to the given barangay.
+     * Recompute hazard_zones.affected_population for all zones in a barangay.
+     *
+     * For each zone that has a GeoJSON polygon in the `coordinates` column,
+     * count only the households whose GPS point falls inside that polygon.
+     * Zones without a polygon are set to 0.
+     *
+     * This replaces the old approach of copying barangay.population to every
+     * zone regardless of spatial overlap.
      */
     public static function syncHazardZones(int $barangayId): void
     {
-        $population = Barangay::where('id', $barangayId)->value('population') ?? 0;
+        $zones = HazardZone::where('barangay_id', $barangayId)->get();
 
-        DB::table('hazard_zones')
-            ->where('barangay_id', $barangayId)
-            ->update([
-                'affected_population' => $population,
-                'updated_at'          => now(),
-            ]);
+        if ($zones->isEmpty()) {
+            return;
+        }
+
+        // Load all geo-tagged households for this barangay once
+        $households = Household::where('barangay_id', $barangayId)
+            ->whereNotNull('latitude')
+            ->whereNotNull('longitude')
+            ->get(['latitude', 'longitude', 'family_members']);
+
+        foreach ($zones as $zone) {
+            $affected = 0;
+            $ring     = GeoService::outerRing($zone->coordinates);
+
+            if ($ring !== null) {
+                foreach ($households as $h) {
+                    if (GeoService::pointInPolygon(
+                        (float) $h->latitude,
+                        (float) $h->longitude,
+                        $ring
+                    )) {
+                        $affected += (int) ($h->family_members ?? 1);
+                    }
+                }
+            }
+
+            $zone->affected_population = $affected;
+            $zone->save();
+        }
     }
 }
