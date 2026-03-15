@@ -3,6 +3,7 @@
 use App\Http\Controllers\AlertController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\BarangayController;
+use App\Http\Controllers\EvacuationCenterController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\HazardZoneController;
 use App\Http\Controllers\HouseholdController;
@@ -103,6 +104,9 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('incidents',          [MapController::class, 'apiIncidents'])        ->name('incidents');
         Route::get('evacuation-centers', [MapController::class, 'apiEvacuationCenters'])->name('evacuation-centers');
     });
+
+    // ── Module 11: Evacuation Centers ───────────────────────────────────────
+    Route::resource('evacuations', EvacuationCenterController::class);
 
     // ── Module 10: Alerts & Announcements ───────────────────────────────────
     Route::resource('alerts', AlertController::class)

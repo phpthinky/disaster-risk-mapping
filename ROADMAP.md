@@ -41,7 +41,7 @@ This document tracks the migration of the legacy PHP application (`old-app/`) in
 | 8 | Incident Reports | ✅ Done | Polygon drawing, affected area computation |
 | 9 | Map View | ✅ Done | Leaflet master map, all GIS layers |
 | 10 | Alerts & Announcements | ⬜ Pending | CRUD, role targeting |
-| 11 | Evacuation Centers | ⬜ Pending | CRUD, map markers |
+| 11 | Evacuation Centers | ✅ Done | CRUD, map markers, capacity tracking |
 | 12 | Dashboards | ⬜ Pending | Admin, Barangay, Division Chief dashboards |
 | 13 | Reports & Exports | ⬜ Pending | PDF/Excel export, risk analysis |
 | 14 | User Management | ⬜ Pending | Admin user CRUD, profile |
@@ -295,3 +295,4 @@ resources/views/
 | 2026-03-15 | Module 6 | HazardZoneController, CRUD views, Leaflet polygon draw, GeoJSON API |
 | 2026-03-15 | Module 6 | Bug fixes: PIP division-by-zero, area_km2 precision, affected_population PIP calculation |
 | 2026-03-15 | Module 7 | PopulationDataController, index + show views, Chart.js trend, archive trail |
+| 2026-03-15 | Module 11 | EvacuationCenterController, CRUD views, Leaflet pin picker, capacity progress bars |
