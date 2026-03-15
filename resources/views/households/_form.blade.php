@@ -208,10 +208,46 @@
 @push('scripts')
 <script>
 (function () {
+  /*
     var map = L.map('gpsMap').setView([12.835, 120.82], 11);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 18, attribution: '© OpenStreetMap contributors'
     }).addTo(map);
+*/
+        // ── Base tile layers ─────────────────────────────────────────────────────
+    var street = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    });
+
+    var satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 19,
+        attribution: 'Tiles © Esri — Source: Esri, USGS, NOAA'
+    });
+
+    var hybrid = L.layerGroup([
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            maxZoom: 19,
+            attribution: 'Tiles © Esri'
+        }),
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+            maxZoom: 19,
+            opacity: 1
+        })
+    ]);
+
+    // ── Init map ─────────────────────────────────────────────────────────────
+    var map = L.map('gpsMap', {
+        center: [12.835, 120.82],
+        zoom: 11,
+        layers: [street]
+    });
+
+    L.control.layers(
+        { 'Street': street, 'Satellite': satellite, 'Hybrid': hybrid },
+        {},
+        { position: 'topright', collapsed: false }
+    ).addTo(map);
 
     var marker = null;
     var initLat = parseFloat(document.getElementById('latInput').value);
