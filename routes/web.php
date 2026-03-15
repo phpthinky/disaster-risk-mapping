@@ -5,6 +5,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\HazardZoneController;
 use App\Http\Controllers\HouseholdController;
 use App\Http\Controllers\HouseholdMemberController;
+use App\Http\Controllers\PopulationDataController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
@@ -67,5 +68,11 @@ Route::middleware(['auth', 'active'])->group(function () {
             ->name('hazards.geojson');
     });
 
-    // ── Module 7+ routes will be added here ─────────────────────────────────
+    // ── Module 7: Population Data (read-only) ───────────────────────────────
+    Route::get('population', [PopulationDataController::class, 'index'])
+        ->name('population.index');
+    Route::get('population/{barangay}', [PopulationDataController::class, 'show'])
+        ->name('population.show');
+
+    // ── Module 8+ routes will be added here ─────────────────────────────────
 });

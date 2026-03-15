@@ -1,0 +1,156 @@
+@extends('layouts.app')
+
+@section('title', 'Population Data')
+
+@section('page-header')
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h4 class="page-title mb-0">Population Data</h4>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
+                <li class="breadcrumb-item active">Population Data</li>
+            </ol>
+        </nav>
+    </div>
+    <div>
+        <span class="badge bg-info"><i class="fas fa-lock me-1"></i>Auto-computed — read only</span>
+    </div>
+</div>
+@endsection
+
+@section('content')
+
+{{-- Stat Cards --}}
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3">
+        <div class="card stat-card border-0 shadow-sm">
+            <div class="card-body d-flex align-items-center gap-3">
+                <div class="stat-icon bg-primary bg-opacity-10 text-primary rounded-3 p-3">
+                    <i class="fas fa-users fa-lg"></i>
+                </div>
+                <div>
+                    <div class="fw-bold fs-4">{{ number_format($totals['population']) }}</div>
+                    <div class="text-muted small">Total Population</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card stat-card border-0 shadow-sm">
+            <div class="card-body d-flex align-items-center gap-3">
+                <div class="stat-icon bg-success bg-opacity-10 text-success rounded-3 p-3">
+                    <i class="fas fa-house fa-lg"></i>
+                </div>
+                <div>
+                    <div class="fw-bold fs-4">{{ number_format($totals['households']) }}</div>
+                    <div class="text-muted small">Total Households</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card stat-card border-0 shadow-sm">
+            <div class="card-body d-flex align-items-center gap-3">
+                <div class="stat-icon bg-warning bg-opacity-10 text-warning rounded-3 p-3">
+                    <i class="fas fa-wheelchair fa-lg"></i>
+                </div>
+                <div>
+                    <div class="fw-bold fs-4">{{ number_format($totals['pwd']) }}</div>
+                    <div class="text-muted small">PWD Count</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card stat-card border-0 shadow-sm">
+            <div class="card-body d-flex align-items-center gap-3">
+                <div class="stat-icon bg-info bg-opacity-10 text-info rounded-3 p-3">
+                    <i class="fas fa-map-marker-alt fa-lg"></i>
+                </div>
+                <div>
+                    <div class="fw-bold fs-4">{{ $totals['barangays'] }}</div>
+                    <div class="text-muted small">Barangays</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- Table --}}
+<div class="card">
+    <div class="card-header"><i class="fas fa-table me-2"></i>Barangay Population Summary</div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Barangay</th>
+                        <th class="text-end">Population</th>
+                        <th class="text-end">Change</th>
+                        <th class="text-end">Households</th>
+                        <th class="text-end">Elderly (60+)</th>
+                        <th class="text-end">Children</th>
+                        <th class="text-end">PWD</th>
+                        <th class="text-end">IPs</th>
+                        <th class="text-muted text-end small">Last Sync</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($barangays as $b)
+                    @php
+                        $rec     = $currentRecords[$b->id] ?? null;
+                        $prev    = $latestArchive[$b->id]  ?? null;
+                        $diff    = $rec && $prev ? ($rec->total_population - $prev->total_population) : null;
+                    @endphp
+                    <tr>
+                        <td class="fw-medium">{{ $b->name }}</td>
+                        <td class="text-end">{{ number_format($b->population) }}</td>
+                        <td class="text-end">
+                            @if($diff !== null)
+                                @if($diff > 0)
+                                    <span class="text-success small"><i class="fas fa-arrow-up me-1"></i>{{ number_format($diff) }}</span>
+                                @elseif($diff < 0)
+                                    <span class="text-danger small"><i class="fas fa-arrow-down me-1"></i>{{ number_format(abs($diff)) }}</span>
+                                @else
+                                    <span class="text-muted small">—</span>
+                                @endif
+                            @else
+                                <span class="text-muted small">—</span>
+                            @endif
+                        </td>
+                        <td class="text-end">{{ number_format($b->household_count) }}</td>
+                        <td class="text-end">{{ number_format($b->senior_count) }}</td>
+                        <td class="text-end">{{ number_format($b->children_count) }}</td>
+                        <td class="text-end">{{ number_format($b->pwd_count) }}</td>
+                        <td class="text-end">{{ number_format($b->ip_count) }}</td>
+                        <td class="text-end text-muted small">
+                            {{ $rec?->updated_at?->format('M j, Y') ?? '—' }}
+                        </td>
+                        <td class="text-end">
+                            <a href="{{ route('population.show', $b) }}" class="btn btn-outline-primary btn-sm">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+                <tfoot class="table-light fw-bold">
+                    <tr>
+                        <td>Total</td>
+                        <td class="text-end">{{ number_format($totals['population']) }}</td>
+                        <td></td>
+                        <td class="text-end">{{ number_format($totals['households']) }}</td>
+                        <td class="text-end">{{ number_format($barangays->sum('senior_count')) }}</td>
+                        <td class="text-end">{{ number_format($barangays->sum('children_count')) }}</td>
+                        <td class="text-end">{{ number_format($totals['pwd']) }}</td>
+                        <td class="text-end">{{ number_format($barangays->sum('ip_count')) }}</td>
+                        <td colspan="2"></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+@endsection
