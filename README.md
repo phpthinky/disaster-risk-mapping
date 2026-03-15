@@ -1,73 +1,158 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Disaster Risk Mapping System
+### Sablayan, Occidental Mindoro, Philippines
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+A web-based Disaster Risk Management Platform for the municipality of Sablayan. It manages 22 barangays, household data, hazard zones, population statistics, incident reports, and GIS mapping.
 
-## About Laravel
+Built with **Laravel 11**, **Bootstrap 5**, **Leaflet.js**, and **Chart.js**.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+---
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Quick Start
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+```bash
+# 1. Install PHP dependencies
+composer install
 
-## Learning Laravel
+# 2. Install JS/CSS dependencies
+npm install
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+# 3. Copy environment file and generate app key
+cp .env.example .env
+php artisan key:generate
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+# 4. Configure your database in .env, then run migrations and seeders
+php artisan migrate --seed
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+# 5. Start the dev server (two terminals)
+php artisan serve
+npm run dev
+```
 
-## Laravel Sponsors
+> Default admin credentials are set in `database/seeders/UserSeeder.php`.
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+---
 
-### Premium Partners
+## Roles
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[WebReinvent](https://webreinvent.com/)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Jump24](https://jump24.co.uk)**
-- **[Redberry](https://redberry.international/laravel/)**
-- **[Active Logic](https://activelogic.com)**
-- **[byte5](https://byte5.de)**
-- **[OP.GG](https://op.gg)**
+| Role | Access |
+|------|--------|
+| `admin` | Full access to all modules |
+| `division_chief` | Read-only aggregate views |
+| `barangay_staff` | Own barangay data only |
 
-## Contributing
+---
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+## Key Concepts
 
-## Code of Conduct
+### Sync Chain
+All population figures are **auto-computed** — never entered manually. Every time a household or member is saved or deleted, the following chain runs automatically via `HouseholdObserver`:
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+```
+recomputeHousehold()
+  → syncBarangay()
+    → syncPopulationData()
+      → syncHazardZones()
+```
 
-## Security Vulnerabilities
+### Population Archiving
+There are two types of archive records in `population_data_archive`:
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+| Type | When | `snapshot_type` |
+|------|------|----------------|
+| **Auto** | Every household save/delete (continuous audit trail) | `auto` |
+| **Annual** | Dec 31 via cron, or manually via admin button | `annual` |
+
+The trend chart on the Population module uses only **annual** snapshots to show meaningful year-over-year data.
+
+---
+
+## Cron Job — Annual Population Snapshot
+
+The system takes a deliberate year-end snapshot of every barangay's population on **Dec 31 at 23:55** automatically, using Laravel's scheduler.
+
+### Step 1 — Add one line to the server's crontab
+
+Open the crontab editor on the server:
+
+```bash
+crontab -e
+```
+
+Add this single line (replace the path with your actual project path):
+
+```cron
+* * * * * php /var/www/disaster-risk-mapping/artisan schedule:run >> /dev/null 2>&1
+```
+
+> This runs every minute. Laravel reads `routes/console.php` and decides whether it's time to run your scheduled commands — the annual snapshot will only fire once per year on Dec 31.
+
+### Step 2 — Verify the schedule is registered
+
+```bash
+php artisan schedule:list
+```
+
+You should see `population:annual-snapshot` with a `Yearly on December 31 at 23:55` frequency.
+
+### Step 3 — Test the command manually
+
+```bash
+# Snapshot all barangays right now (for testing or a mid-year manual save)
+php artisan population:annual-snapshot
+
+# Snapshot one specific barangay only
+php artisan population:annual-snapshot --barangay=5
+```
+
+Snapshots are logged to `storage/logs/population-snapshot.log`.
+
+### Step 4 — Confirm in the UI
+
+Go to **Population Data → Details & History** for any barangay. In the **Archive Trail** table, filter by **Annual only** — you should see the new row highlighted in green with `archived_by = cron_annual`.
+
+### Admin manual snapshot
+
+If you need to save an annual snapshot at any time (e.g. before a major data update), log in as admin, go to **Population Data**, click a barangay's **Details & History** button, then click **Take Annual Snapshot** in the top-right corner.
+
+---
+
+## Modules
+
+| # | Module | Status |
+|---|--------|--------|
+| 1 | Foundation & Database | ✅ Done |
+| 2 | Authentication & Authorization | ✅ Done |
+| 3 | Layout & UI Shell | ✅ Done |
+| 4 | Barangay Management | ✅ Done |
+| 5 | Household Management | ✅ Done |
+| 6 | Hazard Zones | ✅ Done |
+| 7 | Population Data | ✅ Done |
+| 8 | Incident Reports | ⬜ Pending |
+| 9 | Map View | ⬜ Pending |
+| 10 | Alerts & Announcements | ⬜ Pending |
+| 11 | Evacuation Centers | ⬜ Pending |
+| 12 | Dashboards | ⬜ Pending |
+| 13 | Reports & Exports | ⬜ Pending |
+| 14 | User Management | ⬜ Pending |
+
+See [`ROADMAP.md`](ROADMAP.md) and the [`modules/`](modules/) folder for detailed notes on each module.
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Framework | Laravel 11 (PHP 8.2+) |
+| Frontend | Bootstrap 5, Vite |
+| Maps | Leaflet.js + Leaflet.Draw |
+| Charts | Chart.js |
+| Database | MySQL (production) / SQLite (development) |
+| Auth | Laravel built-in + role middleware |
+| GIS | GeoJSON stored in `text` columns; ray-casting point-in-polygon via `GeoService` |
+
+---
 
 ## License
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
-# Laravel UI + Bootstrap 5 Template (Laravel 11)
-
-1. composer install  
-2. npm install  
-3. cp .env.example .env  
-4. php artisan key:generate  
-5. npm run dev  
+Internal municipal government system — not publicly licensed.
