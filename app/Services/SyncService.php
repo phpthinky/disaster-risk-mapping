@@ -117,7 +117,7 @@ class SyncService
         Household::withoutEvents(function () use (
             $household, $familyMembers, $pwdCount, $pregnantCount, $seniorCount,
             $infantCount, $minorCount, $childCount, $adolescentCount,
-            $youngAdultCount, $adultCount, $middleAgedCount
+            $youngAdultCount, $adultCount, $middleAgedCount, $ipCount
         ) {
             $household->update([
                 'family_members'    => $familyMembers,
