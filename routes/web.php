@@ -5,6 +5,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\HazardZoneController;
 use App\Http\Controllers\HouseholdController;
 use App\Http\Controllers\HouseholdMemberController;
+use App\Http\Controllers\IncidentReportController;
 use App\Http\Controllers\PopulationDataController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
@@ -79,5 +80,15 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->middleware('role:admin')
         ->name('population.snapshot');
 
-    // ── Module 8+ routes will be added here ─────────────────────────────────
+    // ── Module 8: Incident Reports ───────────────────────────────────────────
+    // All authenticated users can view; write access checked in controller.
+    Route::resource('incidents', IncidentReportController::class);
+
+    // API: map data for incident form & show map
+    Route::prefix('api')->name('api.')->group(function () {
+        Route::get('incidents/map-data', [IncidentReportController::class, 'mapData'])
+            ->name('incidents.map-data');
+    });
+
+    // ── Module 9+ routes will be added here ─────────────────────────────────
 });
