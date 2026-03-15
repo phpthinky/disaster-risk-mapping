@@ -55,7 +55,7 @@
                 [
                     'title'  => 'Evacuation Centers',
                     'icon'   => 'fa-house-medical-flag',
-                    'route'  => 'evacuation.index',
+                    'route'  => 'evacuations.index',
                     'roles'  => ['admin', 'barangay_staff', 'division_chief'],
                 ],
                 [
