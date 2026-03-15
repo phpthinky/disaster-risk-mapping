@@ -35,6 +35,17 @@ class HouseholdMemberController extends Controller
             'is_ip'      => 'boolean',
         ]);
 
+        $duplicate = $household->members()
+            ->whereRaw('LOWER(full_name) = ?', [strtolower($validated['name'])])
+            ->exists();
+
+        if ($duplicate) {
+            return response()->json([
+                'ok'      => false,
+                'message' => 'A member named "' . $validated['name'] . '" already exists in this household.',
+            ], 422);
+        }
+
         $member = $household->members()->create([
             'full_name'    => $validated['name'],
             'age'          => $validated['age'],

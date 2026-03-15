@@ -9,6 +9,8 @@ class PopulationDataArchive extends Model
 {
     public $timestamps = false;
 
+    protected $table = 'population_data_archive';
+
     protected $fillable = [
         'original_id',
         'barangay_id',
