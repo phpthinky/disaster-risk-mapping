@@ -21,6 +21,18 @@
 
 @section('content')
 
+<div class="alert alert-info d-flex gap-3 align-items-start mb-4 py-2">
+    <i class="fas fa-info-circle mt-1 flex-shrink-0"></i>
+    <div class="small">
+        <strong>How archiving works:</strong>
+        Population figures are computed automatically every time a household or member is saved.
+        <em>Auto</em> archive entries are created on each change (continuous history).
+        <em>Annual</em> snapshots are deliberate year-end records — admins can save one manually from the
+        <strong>Details &amp; History</strong> page, or they run automatically every <strong>Dec 31</strong>.
+        Click <strong>Details &amp; History</strong> on any row below to view the archive trail and trend chart.
+    </div>
+</div>
+
 {{-- Stat Cards --}}
 <div class="row g-3 mb-4">
     <div class="col-6 col-lg-3">
@@ -130,7 +142,7 @@
                         </td>
                         <td class="text-end">
                             <a href="{{ route('population.show', $b) }}" class="btn btn-outline-primary btn-sm">
-                                <i class="fas fa-eye"></i>
+                                <i class="fas fa-chart-line me-1"></i>Details & History
                             </a>
                         </td>
                     </tr>

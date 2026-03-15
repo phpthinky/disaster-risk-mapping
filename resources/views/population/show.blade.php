@@ -16,8 +16,17 @@
             </ol>
         </nav>
     </div>
-    <div class="d-flex align-items-center gap-2">
+    <div class="d-flex align-items-center gap-2 flex-wrap">
         <span class="badge bg-info"><i class="fas fa-lock me-1"></i>Read only</span>
+        @if(auth()->user()->isAdmin())
+        <form method="POST" action="{{ route('population.snapshot', $barangay) }}"
+              onsubmit="return confirm('Save an annual snapshot for {{ $barangay->name }} right now?')">
+            @csrf
+            <button type="submit" class="btn btn-sm btn-outline-success">
+                <i class="fas fa-camera me-1"></i>Take Annual Snapshot
+            </button>
+        </form>
+        @endif
         @if(!auth()->user()->isBarangayStaff())
         <a href="{{ route('population.index') }}" class="btn btn-outline-secondary btn-sm">
             <i class="fas fa-arrow-left me-1"></i> All Barangays
@@ -28,6 +37,19 @@
 @endsection
 
 @section('content')
+
+@if(session('success'))
+<div class="alert alert-success alert-dismissible fade show" role="alert">
+    <i class="fas fa-check-circle me-2"></i>{{ session('success') }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+@endif
+@if(session('error'))
+<div class="alert alert-danger alert-dismissible fade show" role="alert">
+    <i class="fas fa-exclamation-circle me-2"></i>{{ session('error') }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+@endif
 
 @if(!$current)
 <div class="alert alert-warning">
@@ -132,14 +154,27 @@
     {{-- Population Trend Chart --}}
     <div class="col-lg-8">
         <div class="card h-100">
-            <div class="card-header"><i class="fas fa-chart-line me-2"></i>Population Trend (last 10 snapshots)</div>
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-chart-line me-2"></i>Population Trend</span>
+                <small class="text-muted">Last 10 annual snapshots</small>
+            </div>
             <div class="card-body d-flex align-items-center justify-content-center">
                 @if($chartData->isNotEmpty())
                 <canvas id="popTrendChart" style="max-height:280px;"></canvas>
                 @else
                 <div class="text-muted text-center py-5">
                     <i class="fas fa-chart-line fa-2x mb-2 d-block opacity-50"></i>
-                    No archive data yet — trend will appear after the first population sync.
+                    No annual snapshot yet — trend will appear after the first annual snapshot is taken.
+                    @if(auth()->user()->isAdmin())
+                    <div class="mt-3">
+                        <form method="POST" action="{{ route('population.snapshot', $barangay) }}">
+                            @csrf
+                            <button type="submit" class="btn btn-sm btn-outline-success">
+                                <i class="fas fa-camera me-1"></i>Take First Snapshot Now
+                            </button>
+                        </form>
+                    </div>
+                    @endif
                 </div>
                 @endif
             </div>
@@ -148,21 +183,31 @@
 </div>
 
 {{-- Archive Trail --}}
-<div class="card">
+<div class="card" id="archive-trail">
     <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-        <span><i class="fas fa-history me-2"></i>Archive Trail
+        <span>
+            <i class="fas fa-history me-2"></i>Archive Trail
             <span class="badge bg-secondary ms-1">{{ $archives->total() }} records</span>
+            <span class="ms-2 small text-muted">
+                <span class="badge bg-success text-dark me-1">annual</span> = deliberate year-end snapshot
+                <span class="badge bg-light border text-dark ms-2 me-1">auto</span> = recorded on each household change
+            </span>
         </span>
-        {{-- Year filter --}}
-        <form method="GET" class="d-flex align-items-center gap-2">
+        {{-- Filters --}}
+        <form method="GET" class="d-flex align-items-center gap-2 flex-wrap">
+            <select name="type" class="form-select form-select-sm" style="width:auto;" onchange="this.form.submit()">
+                <option value="">All Types</option>
+                <option value="annual" {{ request('type') === 'annual' ? 'selected' : '' }}>Annual only</option>
+                <option value="auto"   {{ request('type') === 'auto'   ? 'selected' : '' }}>Auto only</option>
+            </select>
             <select name="year" class="form-select form-select-sm" style="width:auto;" onchange="this.form.submit()">
                 <option value="">All Years</option>
                 @foreach($archiveYears as $yr)
                     <option value="{{ $yr }}" {{ request('year') == $yr ? 'selected' : '' }}>{{ $yr }}</option>
                 @endforeach
             </select>
-            @if(request('year'))
-                <a href="{{ route('population.show', $barangay) }}" class="btn btn-sm btn-outline-secondary">Clear</a>
+            @if(request('year') || request('type'))
+                <a href="{{ route('population.show', $barangay) }}#archive-trail" class="btn btn-sm btn-outline-secondary">Clear</a>
             @endif
         </form>
     </div>
@@ -172,6 +217,7 @@
                 <thead class="table-light">
                     <tr>
                         <th>Archived At</th>
+                        <th>Type</th>
                         <th class="text-end">Population</th>
                         <th class="text-end">Households</th>
                         <th class="text-end">Elderly</th>
@@ -179,13 +225,24 @@
                         <th class="text-end">PWD</th>
                         <th class="text-end">IPs</th>
                         <th>Archived By</th>
-                        <th>Change Type</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse($archives as $arc)
-                    <tr>
-                        <td class="small text-muted">{{ $arc->archived_at?->format('M j, Y g:i A') ?? '—' }}</td>
+                    @php $isAnnual = ($arc->snapshot_type ?? 'auto') === 'annual'; @endphp
+                    <tr class="{{ $isAnnual ? 'table-success' : '' }}">
+                        <td class="small {{ $isAnnual ? 'fw-semibold' : 'text-muted' }}">
+                            {{ $arc->archived_at?->format('M j, Y g:i A') ?? '—' }}
+                        </td>
+                        <td>
+                            @if($isAnnual)
+                                <span class="badge bg-success text-dark">
+                                    <i class="fas fa-star me-1"></i>Annual
+                                </span>
+                            @else
+                                <span class="badge bg-light border text-muted">Auto</span>
+                            @endif
+                        </td>
                         <td class="text-end fw-medium">{{ number_format($arc->total_population) }}</td>
                         <td class="text-end">{{ number_format($arc->households) }}</td>
                         <td class="text-end">{{ number_format($arc->elderly_count) }}</td>
@@ -193,11 +250,6 @@
                         <td class="text-end">{{ number_format($arc->pwd_count) }}</td>
                         <td class="text-end">{{ number_format($arc->ips_count) }}</td>
                         <td class="small">{{ $arc->archived_by ?? '—' }}</td>
-                        <td>
-                            <span class="badge bg-{{ $arc->change_type === 'UPDATE' ? 'warning' : 'success' }} text-dark">
-                                {{ $arc->change_type }}
-                            </span>
-                        </td>
                     </tr>
                     @empty
                     <tr>
@@ -209,7 +261,7 @@
         </div>
     </div>
     @if($archives->hasPages())
-    <div class="card-footer">{{ $archives->links() }}</div>
+    <div class="card-footer">{{ $archives->appends(request()->query())->links() }}</div>
     @endif
 </div>
 
@@ -219,18 +271,18 @@
 @if($chartData->isNotEmpty())
 <script>
 (function () {
-    var labels  = {!! $chartData->pluck('archived_at')->map(fn($d) => '"' . \Carbon\Carbon::parse($d)->format('M j, Y') . '"')->join(',') !!};
-    var popData = {!! $chartData->pluck('total_population')->join(',') !!};
-    var hhData  = {!! $chartData->pluck('households')->join(',') !!};
+    var labels  = [{!! $chartData->pluck('archived_at')->map(fn($d) => '"' . \Carbon\Carbon::parse($d)->format('M j, Y') . '"')->join(',') !!}];
+    var popData = [{!! $chartData->pluck('total_population')->join(',') !!}];
+    var hhData  = [{!! $chartData->pluck('households')->join(',') !!}];
 
     new Chart(document.getElementById('popTrendChart'), {
         type: 'line',
         data: {
-            labels: [labels],
+            labels: labels,
             datasets: [
                 {
                     label: 'Population',
-                    data: [popData],
+                    data: popData,
                     borderColor: '#0d6efd',
                     backgroundColor: 'rgba(13,110,253,0.08)',
                     tension: 0.3,
@@ -240,7 +292,7 @@
                 },
                 {
                     label: 'Households',
-                    data: [hhData],
+                    data: hhData,
                     borderColor: '#198754',
                     backgroundColor: 'rgba(25,135,84,0.08)',
                     tension: 0.3,

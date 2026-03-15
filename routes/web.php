@@ -70,11 +70,14 @@ Route::middleware(['auth', 'active'])->group(function () {
             ->name('hazards.geojson');
     });
 
-    // ── Module 7: Population Data (read-only) ───────────────────────────────
+    // ── Module 7: Population Data (read-only + admin snapshot) ──────────────
     Route::get('population', [PopulationDataController::class, 'index'])
         ->name('population.index');
     Route::get('population/{barangay}', [PopulationDataController::class, 'show'])
         ->name('population.show');
+    Route::post('population/{barangay}/snapshot', [PopulationDataController::class, 'snapshot'])
+        ->middleware('role:admin')
+        ->name('population.snapshot');
 
     // ── Module 8+ routes will be added here ─────────────────────────────────
 });

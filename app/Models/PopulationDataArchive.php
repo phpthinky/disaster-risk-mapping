@@ -26,6 +26,7 @@ class PopulationDataArchive extends Model
         'archived_at',
         'archived_by',
         'change_type',
+        'snapshot_type',
     ];
 
     protected $casts = [

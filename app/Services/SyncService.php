@@ -202,6 +202,7 @@ class SyncService
                 'data_date'         => $existing->data_date ?? now()->toDateString(),
                 'archived_by'       => $archivedBy,
                 'change_type'       => 'UPDATE',
+                'snapshot_type'     => 'auto',
             ]);
 
             $existing->update([
