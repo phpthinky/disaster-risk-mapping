@@ -35,7 +35,16 @@ class HouseholdMemberController extends Controller
             'is_ip'      => 'boolean',
         ]);
 
-        $member = $household->members()->create($validated);
+        $member = $household->members()->create([
+            'full_name'    => $validated['name'],
+            'age'          => $validated['age'],
+            'birthday'     => $validated['birthday'] ?? null,
+            'gender'       => $validated['sex'],
+            'relationship' => $validated['relation'] ?? '',
+            'is_pwd'       => $validated['is_pwd'] ?? false,
+            'is_pregnant'  => $validated['is_pregnant'] ?? false,
+            'is_ip'        => $validated['is_ip'] ?? false,
+        ]);
 
         SyncService::recomputeHousehold($household->id);
         SyncService::handleSync($household->barangay_id);
