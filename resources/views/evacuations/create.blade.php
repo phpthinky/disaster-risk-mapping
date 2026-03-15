@@ -23,7 +23,7 @@
 @section('content')
 <form method="POST" action="{{ route('evacuations.store') }}">
     @csrf
-    @include('evacuations._form')
+    @include('evacuations._form', ['evacuation' => null])
     <div class="mt-4 d-flex gap-2">
         <button type="submit" class="btn btn-primary">
             <i class="fas fa-save me-1"></i> Save Center
