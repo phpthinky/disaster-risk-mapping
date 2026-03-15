@@ -74,7 +74,7 @@
                 {{-- Area --}}
                 <div class="mb-3">
                     <label class="form-label fw-medium">Area (km²)</label>
-                    <input type="number" name="area_km2" step="0.01" min="0" max="9999.99"
+                    <input type="number" name="area_km2" step="0.0001" min="0" max="9999.9999"
                            id="areaKm2"
                            class="form-control @error('area_km2') is-invalid @enderror"
                            value="{{ old('area_km2', $hazard?->area_km2) }}"

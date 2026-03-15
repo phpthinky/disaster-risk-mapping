@@ -188,7 +188,7 @@ class HazardZoneController extends Controller
             'hazard_type_id' => 'required|exists:hazard_types,id',
             'barangay_id'    => 'required|exists:barangays,id',
             'risk_level'     => 'required|in:' . implode(',', HazardZone::RISK_LEVELS),
-            'area_km2'       => 'nullable|numeric|min:0|max:9999.99',
+            'area_km2'       => 'nullable|numeric|min:0|max:9999.9999',
             'description'    => 'nullable|string|max:1000',
             'coordinates'    => 'nullable|string',
         ]);

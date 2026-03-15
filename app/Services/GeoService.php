@@ -31,12 +31,13 @@ class GeoService
             $xj = (float) $ring[$j][0]; // lng of vertex j
             $yj = (float) $ring[$j][1]; // lat of vertex j
 
-            // Cast a horizontal ray rightward from ($lng, $lat) and count crossings
-            $crossesY = ($yi > $lat) !== ($yj > $lat);
-            $crossesX = $lng < (($xj - $xi) * ($lat - $yi) / ($yj - $yi) + $xi);
-
-            if ($crossesY && $crossesX) {
-                $inside = ! $inside;
+            // Only test edges that straddle the ray's y-coordinate
+            if (($yi > $lat) !== ($yj > $lat)) {
+                // Guard against degenerate horizontal edges (yj === yi)
+                $denom = $yj - $yi;
+                if ($denom != 0.0 && $lng < (($xj - $xi) * ($lat - $yi) / $denom + $xi)) {
+                    $inside = ! $inside;
+                }
             }
 
             $j = $i;
