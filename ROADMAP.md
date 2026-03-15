@@ -39,7 +39,7 @@ This document tracks the migration of the legacy PHP application (`old-app/`) in
 | 6 | Hazard Zones | ✅ Done | CRUD, GeoJSON layers, risk levels |
 | 7 | Population Data | ✅ Done | Auto-computed view, archive trail |
 | 8 | Incident Reports | ✅ Done | Polygon drawing, affected area computation |
-| 9 | Map View | ⬜ Pending | Leaflet master map, all GIS layers |
+| 9 | Map View | ✅ Done | Leaflet master map, all GIS layers |
 | 10 | Alerts & Announcements | ⬜ Pending | CRUD, role targeting |
 | 11 | Evacuation Centers | ⬜ Pending | CRUD, map markers |
 | 12 | Dashboards | ⬜ Pending | Admin, Barangay, Division Chief dashboards |

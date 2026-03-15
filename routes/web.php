@@ -6,6 +6,7 @@ use App\Http\Controllers\HazardZoneController;
 use App\Http\Controllers\HouseholdController;
 use App\Http\Controllers\HouseholdMemberController;
 use App\Http\Controllers\IncidentReportController;
+use App\Http\Controllers\MapController;
 use App\Http\Controllers\PopulationDataController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
@@ -90,5 +91,16 @@ Route::middleware(['auth', 'active'])->group(function () {
             ->name('incidents.map-data');
     });
 
-    // ── Module 9+ routes will be added here ─────────────────────────────────
+    // ── Module 9: Map View ───────────────────────────────────────────────────
+    Route::get('map', [MapController::class, 'index'])->name('map.index');
+
+    Route::prefix('api/map')->name('api.map.')->group(function () {
+        Route::get('barangays',          [MapController::class, 'apiBarangays'])        ->name('barangays');
+        Route::get('hazard-zones',       [MapController::class, 'apiHazardZones'])      ->name('hazard-zones');
+        Route::get('households',         [MapController::class, 'apiHouseholds'])       ->name('households');
+        Route::get('incidents',          [MapController::class, 'apiIncidents'])        ->name('incidents');
+        Route::get('evacuation-centers', [MapController::class, 'apiEvacuationCenters'])->name('evacuation-centers');
+    });
+
+    // ── Module 10+ routes will be added here ────────────────────────────────
 });
