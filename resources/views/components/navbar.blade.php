@@ -36,13 +36,12 @@
                 <i class="fas fa-bars fa-lg"></i>
             </button>
 
-            <a class="navbar-brand d-flex align-items-center" href="{{ $user->isAdmin() ? route('dashboard') : ($user->isDivisionChief() ? route('dashboard.division') : route('dashboard.barangay')) }}">
-                <div class="brand-icon me-2">
-                    <i class="fas fa-map-marked-alt"></i>
-                </div>
-                <div class="d-none d-md-block">
-                    <div class="brand-title">Sablayan</div>
-                    <div class="brand-subtitle">Risk Assessment System</div>
+            <a class="navbar-brand d-flex align-items-center" href="{{ auth()->user()->isAdmin() ? route('dashboard') : (auth()->user()->isDivisionChief() ? route('dashboard.division') : route('dashboard.barangay')) }}">
+                <div class="brand-logo me-2">
+                    <img src="/img/disasterLogo.png" alt="Disaster Logo" 
+                 class="img-fluid rounded" 
+                 style="max-width: 100%; height: auto; max-height: 50px;">
+
                 </div>
             </a>
         </div>

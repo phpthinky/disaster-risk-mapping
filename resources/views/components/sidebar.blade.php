@@ -107,18 +107,11 @@
 
 <div class="sidebar" id="sidebar">
     {{-- Brand --}}
-    <div class="sidebar-header">
-        <div class="d-flex align-items-center">
-            <div class="sidebar-brand-icon">
-                <i class="fas fa-map-marked-alt"></i>
-            </div>
-            <div class="sidebar-brand-text ms-2">
-                <div class="fw-bold" style="font-size:.95rem;">Sablayan MDRRMO</div>
-                <div style="font-size:.68rem;opacity:.65;">Risk Assessment System</div>
-            </div>
-        </div>
+    <div class="sidebar-header p-3 border-bottom">
+    <div class="d-flex align-items-center justify-content-center justify-content-md-start">
+        
     </div>
-
+</div>
     {{-- Menu --}}
     <div class="sidebar-menu">
         @foreach($menu as $group)
