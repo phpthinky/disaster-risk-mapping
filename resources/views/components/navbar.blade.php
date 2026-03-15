@@ -43,6 +43,10 @@
                  style="max-width: 100%; height: auto; max-height: 50px;">
 
                 </div>
+                <div class="d-none d-md-block">
+                    <div class="brand-title text-li">Sablayan</div>
+                    <div class="brand-subtitle text-li">Risk Assessment System</div>
+                </div>
             </a>
         </div>
 
