@@ -211,13 +211,21 @@
                                 @if(!auth()->user()->isDivisionChief())
                                 <td class="text-center">
                                     <div class="btn-group btn-group-sm">
-                                        <button class="btn btn-outline-secondary"
-                                                onclick="editMember({{ $m->id }}, @json($m->name), {{ $m->age }}, @json($m->birthday ? $m->birthday->format('Y-m-d') : ''), @json($m->sex), @json($m->relation ?? ''), {{ $m->is_pwd ? 'true' : 'false' }}, {{ $m->is_pregnant ? 'true' : 'false' }}, {{ $m->is_ip ? 'true' : 'false' }})"
+                                        <button class="btn btn-outline-secondary btn-edit-member"
+                                                data-id="{{ $m->id }}"
+                                                data-name="{{ e($m->name) }}"
+                                                data-age="{{ $m->age }}"
+                                                data-birthday="{{ $m->birthday ? $m->birthday->format('Y-m-d') : '' }}"
+                                                data-sex="{{ $m->sex }}"
+                                                data-relation="{{ e($m->relation ?? '') }}"
+                                                data-pwd="{{ $m->is_pwd ? '1' : '0' }}"
+                                                data-pregnant="{{ $m->is_pregnant ? '1' : '0' }}"
+                                                data-ip="{{ $m->is_ip ? '1' : '0' }}"
                                                 title="Edit">
                                             <i class="fas fa-edit"></i>
                                         </button>
-                                        <button class="btn btn-outline-danger"
-                                                onclick="deleteMember({{ $m->id }})" title="Remove">
+                                        <button class="btn btn-outline-danger btn-del-member"
+                                                data-id="{{ $m->id }}" title="Remove">
                                             <i class="fas fa-trash"></i>
                                         </button>
                                     </div>
@@ -372,8 +380,23 @@ function resetModal() {
     document.getElementById('memberFormAlert').className = 'alert d-none';
 }
 
+// ── Event delegation for edit / delete buttons (works for static + dynamic rows)
+document.getElementById('membersTbody').addEventListener('click', function (e) {
+    var editBtn = e.target.closest('.btn-edit-member');
+    var delBtn  = e.target.closest('.btn-del-member');
+
+    if (editBtn) {
+        var d = editBtn.dataset;
+        openEditModal(d.id, d.name, d.age, d.birthday, d.sex, d.relation,
+                      d.pwd === '1', d.pregnant === '1', d.ip === '1');
+    }
+    if (delBtn) {
+        deleteMember(delBtn.dataset.id);
+    }
+});
+
 // ── Open modal in EDIT mode ───────────────────────────────────────────────────
-function editMember(id, name, age, birthday, sex, relation, isPwd, isPregnant, isIp) {
+function openEditModal(id, name, age, birthday, sex, relation, isPwd, isPregnant, isIp) {
     editingMemberId = id;
     document.getElementById('memberModalTitle').innerHTML = '<i class="fas fa-user-edit me-2"></i>Edit Member';
     document.getElementById('saveMemberBtn').innerHTML    = '<i class="fas fa-save me-1"></i> Update Member';
@@ -386,40 +409,49 @@ function editMember(id, name, age, birthday, sex, relation, isPwd, isPregnant, i
     document.getElementById('mPregnant').checked = isPregnant;
     document.getElementById('mIp').checked       = isIp;
     document.getElementById('memberFormAlert').className = 'alert d-none';
-    var modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('addMemberModal'));
-    modal.show();
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('addMemberModal')).show();
 }
 
-// ── Build the member row HTML (shared between add and edit) ───────────────────
+// ── Build member row HTML — uses data-* attrs, no inline onclick args ─────────
 function memberRowHtml(m) {
+    var name     = m.name || m.full_name || '';
+    var sex      = m.sex  || m.gender   || '';
+    var relation = m.relation || m.relationship || '';
+    var birthday = m.birthday || '';
+
     var bdayDisplay = '—';
-    if (m.birthday) {
-        var bd = new Date(m.birthday + 'T00:00:00');
+    if (birthday) {
+        var bd = new Date(birthday + 'T00:00:00');
         bdayDisplay = bd.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
     }
-    var editArgs = [
-        m.id,
-        JSON.stringify(m.name || m.full_name),
-        m.age,
-        JSON.stringify(m.birthday || ''),
-        JSON.stringify(m.sex || m.gender),
-        JSON.stringify(m.relation || m.relationship || ''),
-        m.is_pwd    ? 'true' : 'false',
-        m.is_pregnant ? 'true' : 'false',
-        m.is_ip     ? 'true' : 'false',
-    ].join(', ');
 
-    return '<td class="fw-semibold">' + (m.name || m.full_name) + '</td>' +
+    // Escape for HTML attribute values
+    function esc(s) {
+        return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;');
+    }
+
+    return '<td class="fw-semibold">' + esc(name) + '</td>' +
         '<td class="text-center">' + m.age + '</td>' +
         '<td class="small">' + bdayDisplay + '</td>' +
-        '<td>' + (m.sex || m.gender) + '</td>' +
-        '<td class="small text-muted">' + (m.relation || m.relationship || '—') + '</td>' +
-        '<td class="text-center">' + (m.is_pwd ? '<i class="fas fa-check text-danger"></i>' : '<span class="text-muted">—</span>') + '</td>' +
-        '<td class="text-center">' + (m.is_pregnant ? '<i class="fas fa-check text-info"></i>' : '<span class="text-muted">—</span>') + '</td>' +
-        '<td class="text-center">' + (m.is_ip ? '<i class="fas fa-check" style="color:#7c3aed;"></i>' : '<span class="text-muted">—</span>') + '</td>' +
+        '<td>' + esc(sex) + '</td>' +
+        '<td class="small text-muted">' + (relation ? esc(relation) : '—') + '</td>' +
+        '<td class="text-center">' + (m.is_pwd     ? '<i class="fas fa-check text-danger"></i>'          : '<span class="text-muted">—</span>') + '</td>' +
+        '<td class="text-center">' + (m.is_pregnant ? '<i class="fas fa-check text-info"></i>'           : '<span class="text-muted">—</span>') + '</td>' +
+        '<td class="text-center">' + (m.is_ip       ? '<i class="fas fa-check" style="color:#7c3aed;"></i>' : '<span class="text-muted">—</span>') + '</td>' +
         '<td class="text-center"><div class="btn-group btn-group-sm">' +
-        '<button class="btn btn-outline-secondary" onclick="editMember(' + editArgs + ')" title="Edit"><i class="fas fa-edit"></i></button>' +
-        '<button class="btn btn-outline-danger" onclick="deleteMember(' + m.id + ')" title="Remove"><i class="fas fa-trash"></i></button>' +
+        '<button class="btn btn-outline-secondary btn-edit-member"' +
+            ' data-id="' + m.id + '"' +
+            ' data-name="' + esc(name) + '"' +
+            ' data-age="' + m.age + '"' +
+            ' data-birthday="' + esc(birthday) + '"' +
+            ' data-sex="' + esc(sex) + '"' +
+            ' data-relation="' + esc(relation) + '"' +
+            ' data-pwd="' + (m.is_pwd ? '1' : '0') + '"' +
+            ' data-pregnant="' + (m.is_pregnant ? '1' : '0') + '"' +
+            ' data-ip="' + (m.is_ip ? '1' : '0') + '"' +
+            ' title="Edit"><i class="fas fa-edit"></i></button>' +
+        '<button class="btn btn-outline-danger btn-del-member"' +
+            ' data-id="' + m.id + '" title="Remove"><i class="fas fa-trash"></i></button>' +
         '</div></td>';
 }
 
@@ -510,7 +542,7 @@ document.getElementById('saveMemberBtn').addEventListener('click', function () {
 function deleteMember(id) {
     if (!confirm('Remove this family member?')) return;
 
-    fetch('/api/household-members/' + id, {
+    fetch('/api/household-members/' + String(id), {
         method:  'DELETE',
         headers: { 'X-CSRF-TOKEN': csrfToken }
     })
