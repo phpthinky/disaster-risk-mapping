@@ -62,15 +62,38 @@ resources/views/barangays/
 
 ---
 
+## Modifications
+
+### Fullscreen Map Control (`barangays/edit.blade.php`)
+- **Removed**: `leaflet-fullscreen` CDN plugin (CSS + JS). Its CSS references icon images via relative paths that resolve to nothing when loaded from a CDN domain, causing the fullscreen button to render with no icon.
+- **Added**: Custom `L.Control.Fullscreen` built inline using **Font Awesome** icons (`fa-expand` / `fa-compress`), which is already loaded globally in the app layout.
+- **Behaviour**:
+  - Click `fa-expand` → enters browser fullscreen (`requestFullscreen`) and switches icon to `fa-compress`
+  - Click `fa-compress` → exits fullscreen (`exitFullscreen`) and restores icon
+  - Listening to native `fullscreenchange` event resets icon if user presses `Esc`
+  - `map.invalidateSize()` called on exit so Leaflet redraws tiles after container resize
+
+### Multi-Layer Tile Support (`barangays/edit.blade.php`)
+- **Added** three switchable base layers via `L.control.layers()`:
+  - **Street** — OpenStreetMap tiles (default)
+  - **Satellite** — Esri World Imagery
+  - **Hybrid** — Esri World Imagery + Esri Reference/Boundaries labels overlay (`L.layerGroup`)
+- Layer switcher positioned top-right (`collapsed: false`)
+- Map initialised without `fullscreenControl: true` (plugin option removed)
+
+---
+
 ## Acceptance Criteria
 
-- [ ] `GET /barangays` lists all 22 barangays with summary stat cards
-- [ ] Admin can create a new barangay
-- [ ] Admin can edit any barangay name, area, coordinates, assign staff
-- [ ] Admin can delete a barangay (blocked if households exist)
-- [ ] Leaflet map on edit page shows all existing boundaries as orange overlays
-- [ ] User can draw a polygon; calculated area computed client-side and sent to server
-- [ ] Saved boundary shows on the edit map on reload
-- [ ] Barangay staff sees their own barangay's edit page directly
-- [ ] Division chief can only view, not edit
-- [ ] `GET /api/barangays/boundaries` returns GeoJSON for all bounded barangays
+- [x] `GET /barangays` lists all 22 barangays with summary stat cards
+- [x] Admin can create a new barangay
+- [x] Admin can edit any barangay name, area, coordinates, assign staff
+- [x] Admin can delete a barangay (blocked if households exist)
+- [x] Leaflet map on edit page shows all existing boundaries as orange overlays
+- [x] User can draw a polygon; calculated area computed client-side and sent to server
+- [x] Saved boundary shows on the edit map on reload
+- [x] Barangay staff sees their own barangay's edit page directly
+- [x] Division chief can only view, not edit
+- [x] `GET /api/barangays/boundaries` returns GeoJSON for all bounded barangays
+- [x] Fullscreen button shows Font Awesome icon and toggles correctly
+- [x] Street / Satellite / Hybrid layer switcher works on edit map

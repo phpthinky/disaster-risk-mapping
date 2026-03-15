@@ -438,7 +438,13 @@ document.getElementById('saveMemberBtn').addEventListener('click', function () {
         badge.textContent = parseInt(badge.textContent) + 1;
 
         // Close modal
-        bootstrap.Modal.getInstance(document.getElementById('addMemberModal')).hide();
+        var modalEl = document.getElementById('addMemberModal');
+        var modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+        modal.hide();
+        // Ensure backdrop is fully removed
+        document.querySelectorAll('.modal-backdrop').forEach(function (el) { el.remove(); });
+        document.body.classList.remove('modal-open');
+        document.body.style.removeProperty('padding-right');
     })
     .catch(function () {
         btn.disabled = false;

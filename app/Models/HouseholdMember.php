@@ -22,6 +22,8 @@ class HouseholdMember extends Model
         'is_ip',
     ];
 
+    protected $appends = ['name', 'sex', 'relation'];
+
     protected $casts = [
         'age'         => 'integer',
         'birthday'    => 'date',
